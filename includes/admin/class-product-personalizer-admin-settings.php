@@ -1397,6 +1397,28 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
         echo '<input type="text" id="personalization_area_name" name="personalization_area_name" />';
         echo '</div>';
 
+        // Personalization Type Dropdown
+        echo '<div>';
+        echo '<label for="personalization_area_type">' . esc_html__('Personalization Type:', 'product-personalizer') . '</label>';
+        echo '<select id="personalization_area_type" name="personalization_area_type">';
+        echo '<option value="">' . esc_html__('-- Select Type --', 'product-personalizer') . '</option>';
+        echo '<option value="text">' . esc_html__('Text', 'product-personalizer') . '</option>';
+        echo '<option value="image">' . esc_html__('Image/Clipart', 'product-personalizer') . '</option>';
+        echo '</select>';
+        echo '</div>';
+
+        // Text Options Panel (initially hidden)
+        echo '<div id="text_options_panel" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid #eee;">';
+        echo '<h4>' . esc_html__('Text Options', 'product-personalizer') . '</h4>';
+        echo '<div>';
+        echo '<label for="personalization_text_default">' . esc_html__('Default Text:', 'product-personalizer') . '</label>';
+        echo '<input type="text" id="personalization_text_default" name="personalization_text_default" />';
+        echo '</div>';
+        echo '<div>';
+        echo '<label for="personalization_text_maxlength">' . esc_html__('Max Length:', 'product-personalizer') . '</label>';
+        echo '<input type="number" id="personalization_text_maxlength" name="personalization_text_maxlength" />';
+        echo '</div>';
+
         // Font Dropdown
         echo '<div>';
         echo '<label for="personalization_area_font">' . esc_html__('Font:', 'product-personalizer') . '</label>';
@@ -1421,28 +1443,6 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
             }
         }
         echo '</select>';
-        echo '</div>';
-
-        // Personalization Type Dropdown
-        echo '<div>';
-        echo '<label for="personalization_area_type">' . esc_html__('Personalization Type:', 'product-personalizer') . '</label>';
-        echo '<select id="personalization_area_type" name="personalization_area_type">';
-        echo '<option value="">' . esc_html__('-- Select Type --', 'product-personalizer') . '</option>';
-        echo '<option value="text">' . esc_html__('Text', 'product-personalizer') . '</option>';
-        echo '<option value="image">' . esc_html__('Image/Clipart', 'product-personalizer') . '</option>';
-        echo '</select>';
-        echo '</div>';
-
-        // Text Options Panel (initially hidden)
-        echo '<div id="text_options_panel" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid #eee;">';
-        echo '<h4>' . esc_html__('Text Options', 'product-personalizer') . '</h4>';
-        echo '<div>';
-        echo '<label for="personalization_text_default">' . esc_html__('Default Text:', 'product-personalizer') . '</label>';
-        echo '<input type="text" id="personalization_text_default" name="personalization_text_default" />';
-        echo '</div>';
-        echo '<div>';
-        echo '<label for="personalization_text_maxlength">' . esc_html__('Max Length:', 'product-personalizer') . '</label>';
-        echo '<input type="number" id="personalization_text_maxlength" name="personalization_text_maxlength" />';
         echo '</div>';
         echo '</div>';
 
