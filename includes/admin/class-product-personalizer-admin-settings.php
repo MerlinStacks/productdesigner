@@ -613,27 +613,43 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
      * Enqueue admin assets
      */
     public function enqueue_admin_assets($hook) {
-        if ('toplevel_page_product-personalizer-settings' !== $hook) {
-            return;
+        // Enqueue assets for the main settings page
+        if ('toplevel_page_product-personalizer-settings' === $hook) {
+            // Ensure asset paths are correct relative to this file's location.
+            // plugin_dir_url(__FILE__) from `includes/admin/` will be `.../wp-content/plugins/your-plugin/includes/admin/`
+            // So `../../assets/css/admin.css` becomes `.../wp-content/plugins/your-plugin/assets/css/admin.css`
+            wp_enqueue_style(
+                'product-personalizer-admin-styles', // Unique handle
+                plugin_dir_url(__FILE__) . '../../assets/css/admin.css',
+                array(),
+                '1.0.0' // Consider using a plugin version constant
+            );
+
+            wp_enqueue_script(
+                'product-personalizer-admin-scripts', // Unique handle
+                plugin_dir_url(__FILE__) . '../../assets/js/admin.js',
+                array('jquery', 'wp-color-picker'), // Added wp-color-picker for color swatch picker
+                '1.0.0', // Consider using a plugin version constant
+                true
+            );
         }
 
-        // Ensure asset paths are correct relative to this file's location.
-        // plugin_dir_url(__FILE__) from `includes/admin/` will be `.../wp-content/plugins/your-plugin/includes/admin/`
-        // So `../../assets/css/admin.css` becomes `.../wp-content/plugins/your-plugin/assets/css/admin.css`
-        wp_enqueue_style(
-            'product-personalizer-admin-styles', // Unique handle
-            plugin_dir_url(__FILE__) . '../../assets/css/admin.css',
-            array(),
-            '1.0.0' // Consider using a plugin version constant
-        );
-
-        wp_enqueue_script(
-            'product-personalizer-admin-scripts', // Unique handle
-            plugin_dir_url(__FILE__) . '../../assets/js/admin.js',
-            array('jquery'),
-            '1.0.0', // Consider using a plugin version constant
-            true
-        );
+        // Enqueue assets for the product edit page (for the Personalization tab)
+        // Check if get_current_screen() function exists and then check its ID.
+        if (function_exists('get_current_screen')) {
+            $screen = get_current_screen();
+            if ($screen && 'product' === $screen->id) {
+                wp_enqueue_script(
+                    'product-personalizer-designer-scripts', // Unique handle
+                    plugin_dir_url(__FILE__) . '../../assets/js/product-designer.js',
+                    array('jquery'), // Add other dependencies if needed, e.g., for fabric.js later
+                    '1.0.0', // Consider using a plugin version constant
+                    true // Load in footer
+                );
+                // Potentially enqueue specific styles for the designer area too
+                // wp_enqueue_style('product-personalizer-designer-styles', plugin_dir_url(__FILE__) . '../../assets/css/product-designer.css');
+            }
+        }
     }
 
     /**
