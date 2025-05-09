@@ -36,6 +36,7 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
         add_action('admin_post_product_personalizer_add_color_swatch', array($this, 'handle_add_color_swatch_submission'));
         add_action('admin_post_product_personalizer_delete_color_swatch', array($this, 'handle_delete_color_swatch_action'));
 add_action('admin_post_product_personalizer_update_color_swatch', array($this, 'handle_update_color_swatch_submission'));
+        add_action('admin_post_product_personalizer_add_clipart', array($this, 'handle_add_clipart_submission'));
     }
 
     /**
@@ -386,12 +387,72 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
                      	<p>No color swatches added yet.</p>
                      	<?php
                      }
+                     } // Closes the main else block for color swatches (add/list view)
                      ?>
                     </div>
             <div id="tab-content-clipart" class="tab-content" style="display: none;">
                 <h3>Clipart</h3>
                 <p>Manage clipart assets here.</p>
-                <?php // TEST: Ensure Clipart tab content area is present ?>
+                <?php
+                $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
+                $clipart_assets = $asset_manager->get_clipart(); // Assuming get_clipart() method exists
+?>
+                <h3>Add New Clipart</h3>
+                <form method="post" enctype="multipart/form-data">
+                    <?php wp_nonce_field('add_new_clipart_action', 'add_new_clipart_nonce'); ?>
+                    <input type="hidden" name="action" value="product_personalizer_add_clipart">
+                    <table class="form-table">
+                        <tr valign="top">
+                            <th scope="row"><label for="clipart_name">Name/Label</label></th>
+                            <td><input type="text" name="clipart_name" id="clipart_name" value="" class="regular-text" required /></td>
+                        </tr>
+                        <tr valign="top">
+                            <th scope="row"><label for="clipart_category">Category</label></th>
+                            <td><input type="text" name="clipart_category" id="clipart_category" value="" class="regular-text" /></td>
+                        </tr>
+                        <tr valign="top">
+                            <th scope="row"><label for="clipart_tags">Tags (comma-separated)</label></th>
+                            <td><input type="text" name="clipart_tags" id="clipart_tags" value="" class="regular-text" /></td>
+                        </tr>
+                        <tr valign="top">
+                            <th scope="row"><label for="clipart_file">Clipart File</label></th>
+                            <td><input type="file" name="clipart_file" id="clipart_file" required /></td>
+                        </tr>
+                    </table>
+                    <p class="submit">
+                        <input type="submit" name="submit" id="submit" class="button button-primary" value="Add Clipart">
+                    </p>
+                </form>
+                <?php
+                if (!empty($clipart_assets)) {
+                    echo '<h3>Existing Clipart</h3>';
+                    echo '<table class="wp-list-table widefat striped">';
+                    echo '<thead><tr><th>Image</th><th>Name/Label</th><th>Category</th><th>Tags</th><th>Actions</th></tr></thead>';
+                    echo '<tbody>';
+                    foreach ($clipart_assets as $clipart) {
+                        echo '<tr>';
+                        echo '<td>';
+                        if (!empty($clipart['image_url'])) {
+                            echo '<img src="' . esc_url($clipart['image_url']) . '" alt="' . esc_attr($clipart['name']) . '" style="max-width: 50px; height: auto;" />';
+                        } else {
+                            echo 'No Image';
+                        }
+                        echo '</td>';
+                        echo '<td>' . esc_html($clipart['name']) . '</td>';
+                        echo '<td>' . esc_html($clipart['category'] ?? 'Uncategorized') . '</td>';
+                        echo '<td>' . esc_html(!empty($clipart['tags']) ? implode(', ', $clipart['tags']) : 'No Tags') . '</td>';
+                        echo '<td>';
+                        echo '<a href="#" class="button button-small">Edit</a> '; // Added space for clarity
+                        echo '<a href="#" class="button button-small button-danger">Delete</a>';
+                        echo '</td>';
+                        echo '</tr>';
+                    }
+                    echo '</tbody>';
+                    echo '</table>';
+                } else {
+                    echo '<p>No clipart added yet.</p>';
+                }
+                ?>
             </div>
         </div>
         <script type="text/javascript">
@@ -931,5 +992,90 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
         }
 
         $this->redirect_to_color_swatches_tab();
+    }
+
+    /**
+     * Handles the submission of the "Add New Clipart" form.
+     */
+    public function handle_add_clipart_submission() {
+        // 1. Security Checks
+        if (!isset($_POST['add_new_clipart_nonce']) || !wp_verify_nonce($_POST['add_new_clipart_nonce'], 'add_new_clipart_action')) {
+            wp_die('Security check failed.');
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_die('You do not have sufficient permissions to perform this action.');
+        }
+
+        // 2. Data Retrieval & Sanitization
+        $clipart_name = isset($_POST['clipart_name']) ? sanitize_text_field($_POST['clipart_name']) : '';
+        $clipart_category = isset($_POST['clipart_category']) ? sanitize_text_field($_POST['clipart_category']) : '';
+        $clipart_tags_raw = isset($_POST['clipart_tags']) ? sanitize_text_field($_POST['clipart_tags']) : '';
+        $clipart_tags = !empty($clipart_tags_raw) ? array_map('trim', explode(',', $clipart_tags_raw)) : [];
+        $clipart_file = isset($_FILES['clipart_file']) ? $_FILES['clipart_file'] : null;
+
+        // Basic validation
+        if (empty($clipart_name) || empty($clipart_file) || $clipart_file['error'] !== UPLOAD_ERR_OK) {
+            add_settings_error(
+                'product-personalizer-settings',
+                'clipart_add_error',
+                'Clipart Name and a valid File are required.',
+                'error'
+            );
+            $this->redirect_to_clipart_tab();
+            return;
+        }
+
+        // 3. Call AssetManager
+        try {
+            $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
+            $result = $asset_manager->upload_asset(
+                [
+                    'name' => $clipart_name,
+                    'type' => 'clipart',
+                    'metadata' => [
+                        'category' => $clipart_category,
+                        'tags' => $clipart_tags,
+                    ],
+                ],
+                $clipart_file
+            );
+
+            // 4. Feedback & Redirect
+            if (is_wp_error($result)) {
+                add_settings_error(
+                    'product-personalizer-settings',
+                    'clipart_add_error',
+                    'Failed to add clipart. Error: ' . $result->get_error_message(),
+                    'error'
+                );
+            } else {
+                add_settings_error(
+                    'product-personalizer-settings',
+                    'clipart_add_success',
+                    'Clipart added successfully.',
+                    'success'
+                );
+            }
+        } catch (\Exception $e) {
+            add_settings_error(
+                'product-personalizer-settings',
+                'clipart_add_error',
+                'An unexpected error occurred: ' . $e->getMessage(),
+                'error'
+            );
+        }
+
+        $this->redirect_to_clipart_tab();
+    }
+
+    /**
+     * Redirects the user back to the clipart tab of the settings page.
+     */
+    private function redirect_to_clipart_tab() {
+        $redirect_url = admin_url('admin.php?page=product-personalizer-settings&tab=clipart');
+        settings_errors(); // Display any accumulated settings errors before redirect
+        wp_redirect($redirect_url);
+        exit;
     }
 }
