@@ -1329,8 +1329,25 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
     public function display_personalization_product_data_panel() {
         echo '<div id="product_personalization_data" class="panel woocommerce_options_panel hidden">';
         echo '<h2>' . esc_html__('Product Personalization Setup', 'product-personalizer') . '</h2>';
-        echo '<p>' . esc_html__('Product designer interface will be here.', 'product-personalizer') . '</p>';
-        // Placeholder for the designer UI components
+        global $post;
+        $product = wc_get_product($post->ID);
+        $image_url = '';
+        if ($product) {
+            $image_id = $product->get_image_id();
+            if ($image_id) {
+                $image_url = wp_get_attachment_image_url($image_id, 'full');
+            }
+        }
+
+        echo '<div id="product_personalization_canvas_area" style="border:1px solid #ccc; position:relative; width: 400px; height: 400px; margin-top: 15px; margin-bottom: 15px; overflow: hidden;">';
+        if ($image_url) {
+            echo '<img src="' . esc_url($image_url) . '" alt="' . esc_attr__('Product Image', 'product-personalizer') . '" style="max-width:100%; max-height:100%; display:block; margin:auto;">';
+        } else {
+            echo '<p style="text-align:center; padding: 20px;">' . esc_html__('No product image set. Please set a product image first.', 'product-personalizer') . '</p>';
+        }
+        echo '</div>';
+
+        // Placeholder for other designer UI components
         echo '</div>';
     }
 }
