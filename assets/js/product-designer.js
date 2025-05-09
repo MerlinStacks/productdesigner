@@ -10,8 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const textOptionsPanel = document.getElementById('text_options_panel');
     const textDefaultInput = document.getElementById('personalization_text_default');
     const textMaxLengthInput = document.getElementById('personalization_text_maxlength');
+    const imageOptionsPanel = document.getElementById('image_options_panel'); // New
+    const imageClipartSelect = document.getElementById('personalization_image_clipart_select'); // New
 
-    if (!canvasArea || !propertiesPanel || !areaNameInput || !fontSelect || !colorSelect || !typeSelect || !textOptionsPanel || !textDefaultInput || !textMaxLengthInput) {
+    if (!canvasArea || !propertiesPanel || !areaNameInput || !fontSelect || !colorSelect || !typeSelect || !textOptionsPanel || !textDefaultInput || !textMaxLengthInput || !imageOptionsPanel || !imageClipartSelect) {
         console.warn('Required elements for product designer not found.', {
             canvasArea: !!canvasArea,
             propertiesPanel: !!propertiesPanel,
@@ -21,7 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
             typeSelect: !!typeSelect,
             textOptionsPanel: !!textOptionsPanel,
             textDefaultInput: !!textDefaultInput,
-            textMaxLengthInput: !!textMaxLengthInput
+            textMaxLengthInput: !!textMaxLengthInput,
+            imageOptionsPanel: !!imageOptionsPanel, // New
+            imageClipartSelect: !!imageClipartSelect // New
         });
         return;
     }
@@ -69,8 +73,13 @@ document.addEventListener('DOMContentLoaded', () => {
             fontSelect.value = selectedRectangleData.font_id || '';
             colorSelect.value = selectedRectangleData.color_hex || selectedRectangleData.color_id || ''; // Prioritize hex if available
             
-            // Populate Personalization Type and Text Options
+            // Populate Personalization Type and Type-Specific Options
             typeSelect.value = selectedRectangleData.type || '';
+            
+            // Hide all type-specific panels initially
+            textOptionsPanel.style.display = 'none';
+            imageOptionsPanel.style.display = 'none';
+
             if (selectedRectangleData.type === 'text') {
                 textOptionsPanel.style.display = 'block';
                 if (selectedRectangleData.text_options) {
@@ -80,10 +89,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     textDefaultInput.value = '';
                     textMaxLengthInput.value = '';
                 }
+            } else if (selectedRectangleData.type === 'image') {
+                imageOptionsPanel.style.display = 'block';
+                imageClipartSelect.value = selectedRectangleData.clipart_id || '';
             } else {
-                textOptionsPanel.style.display = 'none';
+                // Clear fields if no specific type or unknown type
                 textDefaultInput.value = '';
                 textMaxLengthInput.value = '';
+                imageClipartSelect.value = '';
             }
 
             propertiesPanel.style.display = 'block';
@@ -104,6 +117,8 @@ document.addEventListener('DOMContentLoaded', () => {
         textOptionsPanel.style.display = 'none';
         textDefaultInput.value = '';
         textMaxLengthInput.value = '';
+        imageOptionsPanel.style.display = 'none'; // New
+        imageClipartSelect.value = ''; // New
         console.log('Deselected rectangle.');
     }
 
@@ -217,15 +232,31 @@ document.addEventListener('DOMContentLoaded', () => {
     typeSelect.addEventListener('change', () => {
         if (selectedRectangleData) {
             selectedRectangleData.type = typeSelect.value;
+
+            // Hide all type-specific panels initially
+            textOptionsPanel.style.display = 'none';
+            imageOptionsPanel.style.display = 'none';
+
             if (typeSelect.value === 'text') {
                 textOptionsPanel.style.display = 'block';
                 // Initialize text_options if it doesn't exist
                 if (!selectedRectangleData.text_options) {
                     selectedRectangleData.text_options = { default_text: '', max_length: '' };
                 }
+                // Clear clipart_id if switching from image to text
+                delete selectedRectangleData.clipart_id;
+            } else if (typeSelect.value === 'image') {
+                imageOptionsPanel.style.display = 'block';
+                // Initialize image_options or clipart_id if it doesn't exist
+                if (typeof selectedRectangleData.clipart_id === 'undefined') {
+                     selectedRectangleData.clipart_id = ''; // Initialize if not present
+                }
+                // Clear text_options if switching from text to image
+                delete selectedRectangleData.text_options;
             } else {
-                textOptionsPanel.style.display = 'none';
-                // Optionally clear text_options or handle as needed
+                // If no specific type or unknown type, clear both specific options
+                delete selectedRectangleData.text_options;
+                delete selectedRectangleData.clipart_id;
             }
             console.log('Updated rectangle type. All rectangles:', drawnRectanglesData);
             console.log('Selected rectangle data:', selectedRectangleData);
@@ -250,6 +281,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             selectedRectangleData.text_options.max_length = textMaxLengthInput.value;
             console.log('Updated text_options.max_length. All rectangles:', drawnRectanglesData);
+            console.log('Selected rectangle data:', selectedRectangleData);
+        }
+    });
+
+    imageClipartSelect.addEventListener('change', () => {
+        if (selectedRectangleData && selectedRectangleData.type === 'image') {
+            selectedRectangleData.clipart_id = imageClipartSelect.value;
+            console.log('Updated clipart_id. All rectangles:', drawnRectanglesData);
             console.log('Selected rectangle data:', selectedRectangleData);
         }
     });

@@ -1370,6 +1370,7 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
         $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
         $available_fonts = $asset_manager->get_fonts();
         $available_color_swatches = $asset_manager->get_color_swatches();
+        $available_clipart = $asset_manager->get_clipart(); // Fetch clipart
 
         $product = wc_get_product($post->ID);
         $image_url = '';
@@ -1443,6 +1444,27 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
         echo '<label for="personalization_text_maxlength">' . esc_html__('Max Length:', 'product-personalizer') . '</label>';
         echo '<input type="number" id="personalization_text_maxlength" name="personalization_text_maxlength" />';
         echo '</div>';
+        echo '</div>';
+
+        // Image/Clipart Options Panel (initially hidden)
+        echo '<div id="image_options_panel" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid #eee;">';
+        echo '<h4>' . esc_html__('Image/Clipart Options', 'product-personalizer') . '</h4>';
+        echo '<div>';
+        echo '<label for="personalization_image_clipart_select">' . esc_html__('Select Clipart:', 'product-personalizer') . '</label>';
+        echo '<select id="personalization_image_clipart_select" name="personalization_image_clipart_select">';
+        echo '<option value="">' . esc_html__('-- Select Clipart --', 'product-personalizer') . '</option>';
+        if (!empty($available_clipart)) {
+            foreach ($available_clipart as $clipart_item) {
+                // Assuming $clipart_item is an array with 'id' and 'name' keys
+                // Adjust if it's an object or has different property names
+                $clipart_id = isset($clipart_item['id']) ? $clipart_item['id'] : (isset($clipart_item->id) ? $clipart_item->id : '');
+                $clipart_name = isset($clipart_item['name']) ? $clipart_item['name'] : (isset($clipart_item->name) ? $clipart_item->name : '');
+                echo '<option value="' . esc_attr($clipart_id) . '">' . esc_html($clipart_name) . '</option>';
+            }
+        }
+        echo '</select>';
+        echo '</div>';
+        // <!-- More image/clipart options can be added here later -->
         echo '</div>';
 
         echo '<!-- More properties will be added here later -->';
