@@ -37,6 +37,8 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
         add_action('admin_post_product_personalizer_delete_color_swatch', array($this, 'handle_delete_color_swatch_action'));
 add_action('admin_post_product_personalizer_update_color_swatch', array($this, 'handle_update_color_swatch_submission'));
         add_action('admin_post_product_personalizer_add_clipart', array($this, 'handle_add_clipart_submission'));
+        add_action('admin_post_product_personalizer_delete_clipart', array($this, 'handle_delete_clipart_action'));
+        add_action('admin_post_product_personalizer_update_clipart', array($this, 'handle_update_clipart_submission'));
     }
 
     /**
@@ -394,9 +396,71 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
                 <h3>Clipart</h3>
                 <p>Manage clipart assets here.</p>
                 <?php
+                $clipart_action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : '';
+                $clipart_id_to_edit = isset($_GET['clipart_id']) ? absint($_GET['clipart_id']) : 0;
                 $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
-                $clipart_assets = $asset_manager->get_clipart(); // Assuming get_clipart() method exists
-?>
+
+                if ($clipart_action === 'edit_clipart' && $clipart_id_to_edit > 0) {
+                    $clipart_items_to_edit = $asset_manager->get_clipart(['id' => $clipart_id_to_edit]);
+                    $clipart_to_edit = !empty($clipart_items_to_edit) ? $clipart_items_to_edit[0] : null;
+
+                    if ($clipart_to_edit) {
+                        // Display Edit Clipart Form
+                        ?>
+                        <div class="edit-clipart-form">
+                            <h3>Edit Clipart: <?php echo esc_html($clipart_to_edit['name']); ?></h3>
+                            <form method="post" enctype="multipart/form-data">
+                                <?php wp_nonce_field('update_clipart_action_' . $clipart_id_to_edit, 'update_clipart_nonce'); ?>
+                                <input type="hidden" name="action" value="product_personalizer_update_clipart">
+                                <input type="hidden" name="clipart_id" value="<?php echo esc_attr($clipart_id_to_edit); ?>">
+                                <table class="form-table">
+                                    <tr valign="top">
+                                        <th scope="row"><label for="edit_clipart_name">Name/Label</label></th>
+                                        <td><input type="text" name="clipart_name" id="edit_clipart_name" value="<?php echo esc_attr($clipart_to_edit['name']); ?>" class="regular-text" required /></td>
+                                    </tr>
+                                    <tr valign="top">
+                                        <th scope="row"><label for="edit_clipart_category">Category</label></th>
+                                        <td><input type="text" name="clipart_category" id="edit_clipart_category" value="<?php echo esc_attr($clipart_to_edit['category'] ?? ''); ?>" class="regular-text" /></td>
+                                    </tr>
+                                    <tr valign="top">
+                                        <th scope="row"><label for="edit_clipart_tags">Tags (comma-separated)</label></th>
+                                        <td><input type="text" name="clipart_tags" id="edit_clipart_tags" value="<?php echo esc_attr(is_array($clipart_to_edit['tags']) ? implode(', ', $clipart_to_edit['tags']) : ($clipart_to_edit['tags'] ?? '')); ?>" class="regular-text" /></td>
+                                    </tr>
+                                    <tr valign="top">
+                                        <th scope="row">Current Image</th>
+                                        <td>
+                                            <?php if (!empty($clipart_to_edit['image_url'])) : ?>
+                                                <img src="<?php echo esc_url($clipart_to_edit['image_url']); ?>" alt="<?php echo esc_attr($clipart_to_edit['name']); ?>" style="max-width: 100px; height: auto; border: 1px solid #ddd; padding: 5px;" />
+                                            <?php else : ?>
+                                                <p>No image available.</p>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                    <tr valign="top">
+                                        <th scope="row"><label for="edit_clipart_file">Replace Clipart File (Leave empty to keep existing)</label></th>
+                                        <td><input type="file" name="clipart_file" id="edit_clipart_file" /></td>
+                                    </tr>
+                                </table>
+                                <p class="submit">
+                                    <input type="submit" name="submit" id="submit" class="button button-primary" value="Update Clipart">
+                                    <a href="<?php echo esc_url(admin_url('admin.php?page=product-personalizer-settings&tab=clipart')); ?>" class="button button-secondary">Cancel</a>
+                                </p>
+                            </form>
+                        </div>
+                        <?php
+                    } else {
+                        // Clipart not found error
+                        ?>
+                        <div class="error">
+                            <p>Error: Clipart with ID <?php echo esc_html($clipart_id_to_edit); ?> not found.</p>
+                            <p><a href="<?php echo esc_url(admin_url('admin.php?page=product-personalizer-settings&tab=clipart')); ?>">Back to Clipart List</a></p>
+                        </div>
+                        <?php
+                    }
+                } else {
+                    // Display Add New Clipart Form and Existing Clipart List
+                    $clipart_assets = $asset_manager->get_clipart();
+                ?>
                 <h3>Add New Clipart</h3>
                 <form method="post" enctype="multipart/form-data">
                     <?php wp_nonce_field('add_new_clipart_action', 'add_new_clipart_nonce'); ?>
@@ -442,8 +506,12 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
                         echo '<td>' . esc_html($clipart['category'] ?? 'Uncategorized') . '</td>';
                         echo '<td>' . esc_html(!empty($clipart['tags']) ? implode(', ', $clipart['tags']) : 'No Tags') . '</td>';
                         echo '<td>';
-                        echo '<a href="#" class="button button-small">Edit</a> '; // Added space for clarity
-                        echo '<a href="#" class="button button-small button-danger">Delete</a>';
+                        $edit_url = admin_url('admin.php?page=product-personalizer-settings&tab=clipart&action=edit_clipart&clipart_id=' . $clipart['id']);
+                        echo '<a href="' . esc_url($edit_url) . '" class="button button-small">Edit</a> ';
+                        // Modify the Delete link for clipart
+                        $delete_nonce = wp_create_nonce('delete_clipart_' . $clipart['id']);
+                        $delete_url = admin_url('admin-post.php?action=product_personalizer_delete_clipart&clipart_id=' . $clipart['id'] . '&_wpnonce=' . $delete_nonce);
+                        echo '<a href="' . esc_url($delete_url) . '" class="button button-small button-danger" onclick="return confirm(\'Are you sure you want to delete this clipart?\');">Delete</a>';
                         echo '</td>';
                         echo '</tr>';
                     }
@@ -452,6 +520,7 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
                 } else {
                     echo '<p>No clipart added yet.</p>';
                 }
+            } // End else for edit_clipart action check
                 ?>
             </div>
         </div>
@@ -1069,9 +1138,164 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
         $this->redirect_to_clipart_tab();
     }
 
+/**
+     * Handles the deletion of a clipart asset.
+     */
+    public function handle_delete_clipart_action() {
+        // 1. Security Checks
+        if (!isset($_GET['clipart_id']) || !isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'delete_clipart_' . $_GET['clipart_id'])) {
+            wp_die('Security check failed.');
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_die('You do not have sufficient permissions to perform this action.');
+        }
+
+        // 2. Data Retrieval & Sanitization
+        $clipart_id = isset($_GET['clipart_id']) ? absint($_GET['clipart_id']) : 0;
+
+        if (empty($clipart_id)) {
+            add_settings_error(
+                'product-personalizer-settings',
+                'clipart_delete_error',
+                'Invalid clipart ID.',
+                'error'
+            );
+            $this->redirect_to_clipart_tab();
+            return;
+        }
+
+        // 3. Call AssetManager
+        try {
+            $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
+            $result = $asset_manager->deleteAsset($clipart_id); // Assuming deleteAsset handles clipart deletion
+
+            // 4. Feedback & Redirect
+            if (is_wp_error($result)) {
+                add_settings_error(
+                    'product-personalizer-settings',
+                    'clipart_delete_error',
+                    'Failed to delete clipart. Error: ' . $result->get_error_message(),
+                    'error'
+                );
+            } elseif ($result === false && !is_wp_error($result)) { // Check for explicit false if deleteAsset returns bool
+                 add_settings_error(
+                    'product-personalizer-settings',
+                    'clipart_delete_error',
+                    'Failed to delete clipart. The operation returned false as AssetManager::deleteAsset might be a stub.',
+                    'error'
+                );
+            }
+            else {
+                add_settings_error(
+                    'product-personalizer-settings',
+                    'clipart_delete_success',
+                    'Clipart deleted successfully.',
+                    'success'
+                );
+            }
+        } catch (\Exception $e) {
+            add_settings_error(
+                'product-personalizer-settings',
+                'clipart_delete_error',
+                'An unexpected error occurred: ' . $e->getMessage(),
+                'error'
+            );
+        }
+
+        $this->redirect_to_clipart_tab();
+    }
     /**
      * Redirects the user back to the clipart tab of the settings page.
      */
+/**
+     * Handles the submission of the "Update Clipart" form.
+     */
+    public function handle_update_clipart_submission() {
+        // 1. Security Checks
+        if (!isset($_POST['clipart_id'])) {
+            wp_die('Missing clipart ID.');
+        }
+        $clipart_id = absint($_POST['clipart_id']);
+
+        // Nonce check. check_admin_referer will die if nonce is invalid.
+        check_admin_referer('update_clipart_action_' . $clipart_id, 'update_clipart_nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die('You do not have sufficient permissions to perform this action.');
+        }
+
+        // 2. Data Retrieval & Sanitization
+        $clipart_name = isset($_POST['clipart_name']) ? sanitize_text_field($_POST['clipart_name']) : '';
+        $clipart_category = isset($_POST['clipart_category']) ? sanitize_text_field($_POST['clipart_category']) : '';
+        $clipart_tags_raw = isset($_POST['clipart_tags']) ? sanitize_text_field($_POST['clipart_tags']) : '';
+        // Ensure tags are processed correctly, even if empty or just spaces after sanitization
+        $clipart_tags = !empty(trim($clipart_tags_raw)) ? array_map('trim', explode(',', $clipart_tags_raw)) : [];
+        
+        $clipart_file = null;
+        // Check if a file was uploaded and there were no errors
+        if (isset($_FILES['clipart_file']) && !empty($_FILES['clipart_file']['tmp_name']) && $_FILES['clipart_file']['error'] === UPLOAD_ERR_OK) {
+            $clipart_file = $_FILES['clipart_file'];
+        }
+
+        // Basic validation
+        if (empty($clipart_name)) {
+            add_settings_error(
+                'product-personalizer-settings',
+                'clipart_update_error',
+                'Clipart Name/Label is required.',
+                'error'
+            );
+            // Store errors in a transient to display after redirect
+            set_transient('settings_errors', get_settings_errors(), 30);
+            $this->redirect_to_clipart_tab(); // This function calls exit()
+        }
+
+        // 3. Prepare data for AssetManager
+        $asset_data = [
+            'name' => $clipart_name,
+            // 'type' => 'clipart', // Type is usually implicit when updating by ID
+            'metadata' => [
+                'category' => $clipart_category,
+                'tags' => $clipart_tags,
+            ],
+        ];
+
+        // 4. Call AssetManager
+        try {
+            $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
+            // Assuming AssetManager has an `update_asset_metadata` method.
+            // This method should handle both metadata update and optional file replacement.
+            $result = $asset_manager->update_asset_metadata($clipart_id, $asset_data, $clipart_file);
+
+            // 5. Feedback & Redirect
+            if (is_wp_error($result)) {
+                add_settings_error(
+                    'product-personalizer-settings',
+                    'clipart_update_error',
+                    'Failed to update clipart. Error: ' . $result->get_error_message(),
+                    'error'
+                );
+            } else {
+                add_settings_error(
+                    'product-personalizer-settings',
+                    'clipart_update_success',
+                    'Clipart updated successfully.',
+                    'success'
+                );
+            }
+        } catch (\Exception $e) {
+            add_settings_error(
+                'product-personalizer-settings',
+                'clipart_update_exception',
+                'An error occurred while updating clipart: ' . $e->getMessage(),
+                'error'
+            );
+        }
+        // Store errors in a transient to display after redirect
+        set_transient('settings_errors', get_settings_errors(), 30);
+        $this->redirect_to_clipart_tab(); // This function calls exit()
+    }
     private function redirect_to_clipart_tab() {
         $redirect_url = admin_url('admin.php?page=product-personalizer-settings&tab=clipart');
         settings_errors(); // Display any accumulated settings errors before redirect
