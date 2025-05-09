@@ -657,6 +657,20 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
                 // Instantiate AssetManager to get fonts
                 $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
                 $fonts = $asset_manager->get_fonts(); // Assuming get_fonts() returns an array of font objects/arrays
+                $all_clipart_assets = $asset_manager->get_clipart();
+                $available_clipart = array();
+                if (!empty($all_clipart_assets)) {
+                    foreach ($all_clipart_assets as $clipart_asset) {
+                        if (isset($clipart_asset['id']) && isset($clipart_asset['image_url'])) {
+                            $available_clipart[] = array(
+                                'id' => $clipart_asset['id'],
+                                'image_url' => $clipart_asset['image_url'],
+                                // Optionally include name if needed by JS, though not strictly required by the task
+                                // 'name' => isset($clipart_asset['name']) ? $clipart_asset['name'] : ''
+                            );
+                        }
+                    }
+                }
 
                 wp_localize_script(
                     'product-personalizer-designer-scripts',
@@ -668,6 +682,7 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
                         'save_action' => 'product_personalizer_save_config',
                         'saved_config' => get_post_meta($product_id, '_product_personalization_config_json', true) ?: null,
                         'fonts' => $fonts, // Add the fonts array here
+                        'availableClipart' => $available_clipart, // Add the available clipart data
                     )
                 );
                 // Potentially enqueue specific styles for the designer area too

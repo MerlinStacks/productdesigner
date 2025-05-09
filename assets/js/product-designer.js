@@ -113,16 +113,68 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateClipartPreview(rectData) {
+        if (!rectData || !rectData.element || rectData.type !== 'image') {
+            if (rectData && rectData.element) clearClipartPreview(rectData);
+            return;
+        }
+
+        let previewImgElement = rectData.element.querySelector('.clipart-preview-element');
+        if (!previewImgElement) {
+            previewImgElement = document.createElement('img');
+            previewImgElement.className = 'clipart-preview-element';
+            previewImgElement.style.position = 'absolute';
+            previewImgElement.style.top = '0';
+            previewImgElement.style.left = '0';
+            previewImgElement.style.width = '100%';
+            previewImgElement.style.height = '100%';
+            previewImgElement.style.objectFit = 'contain'; // Or 'cover', 'fill', etc.
+            previewImgElement.style.pointerEvents = 'none';
+            rectData.element.appendChild(previewImgElement);
+            rectData.element.style.overflow = 'hidden'; // Ensure parent clips the image
+        }
+
+        if (rectData.clipart_id && typeof ppDesignerData !== 'undefined' && ppDesignerData.availableClipart) {
+            const clipartInfo = ppDesignerData.availableClipart.find(c => String(c.id) === String(rectData.clipart_id));
+            if (clipartInfo && clipartInfo.image_url) {
+                previewImgElement.src = clipartInfo.image_url;
+                previewImgElement.style.display = 'block';
+                console.log('Updated clipart preview for:', rectData.name, clipartInfo.image_url);
+            } else {
+                previewImgElement.src = '';
+                previewImgElement.style.display = 'none';
+                console.log('Clipart info not found or no image_url for ID:', rectData.clipart_id);
+            }
+        } else {
+            previewImgElement.src = '';
+            previewImgElement.style.display = 'none';
+            if (!rectData.clipart_id) console.log('No clipart_id for preview in:', rectData.name);
+        }
+    }
+
+    function clearClipartPreview(rectData) {
+        if (rectData && rectData.element) {
+            const previewImgElement = rectData.element.querySelector('.clipart-preview-element');
+            if (previewImgElement) {
+                previewImgElement.remove();
+                console.log('Cleared clipart preview for:', rectData.name);
+            }
+        }
+    }
+
     function selectRectangle(rectData) {
         if (selectedRectangleData && selectedRectangleData.element) {
             applyStyle(selectedRectangleData.element, styleDefaults); // Deselect previous
+            // Clear previews from previously selected rectangle if its type was different
+            if (selectedRectangleData.type === 'text') clearTextPreview(selectedRectangleData);
+            else if (selectedRectangleData.type === 'image') clearClipartPreview(selectedRectangleData);
         }
         selectedRectangleData = rectData;
         if (selectedRectangleData && selectedRectangleData.element) {
             applyStyle(selectedRectangleData.element, styleSelected);
             areaNameInput.value = selectedRectangleData.name || '';
             fontSelect.value = selectedRectangleData.font_id || '';
-            colorSelect.value = selectedRectangleData.color_hex || selectedRectangleData.color_id || ''; 
+            colorSelect.value = selectedRectangleData.color_hex || selectedRectangleData.color_id || '';
             
             typeSelect.value = selectedRectangleData.type || '';
             
@@ -138,16 +190,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     textDefaultInput.value = '';
                     textMaxLengthInput.value = '';
                 }
-                updateTextPreview(selectedRectangleData); 
+                updateTextPreview(selectedRectangleData);
+                clearClipartPreview(selectedRectangleData); // Ensure no clipart preview if switched to text
             } else if (selectedRectangleData.type === 'image') {
                 imageOptionsPanel.style.display = 'block';
                 imageClipartSelect.value = selectedRectangleData.clipart_id || '';
-                clearTextPreview(selectedRectangleData); 
+                clearTextPreview(selectedRectangleData); // Ensure no text preview
+                updateClipartPreview(selectedRectangleData);
             } else {
                 textDefaultInput.value = '';
                 textMaxLengthInput.value = '';
                 imageClipartSelect.value = '';
-                clearTextPreview(selectedRectangleData); 
+                clearTextPreview(selectedRectangleData);
+                clearClipartPreview(selectedRectangleData);
             }
 
             propertiesPanel.style.display = 'block';
@@ -158,7 +213,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function deselectRectangle() {
         if (selectedRectangleData && selectedRectangleData.element) {
             applyStyle(selectedRectangleData.element, styleDefaults);
-            // No need to explicitly clear preview here, will be handled by next selection or if type changes
+            if (selectedRectangleData.type === 'text') clearTextPreview(selectedRectangleData);
+            else if (selectedRectangleData.type === 'image') clearClipartPreview(selectedRectangleData);
         }
         selectedRectangleData = null;
         propertiesPanel.style.display = 'none';
@@ -294,19 +350,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!selectedRectangleData.text_options) {
                     selectedRectangleData.text_options = { default_text: '', max_length: '' };
                 }
-                delete selectedRectangleData.clipart_id;
-                updateTextPreview(selectedRectangleData); 
+                delete selectedRectangleData.clipart_id; // Remove clipart ID if switching to text
+                updateTextPreview(selectedRectangleData);
+                clearClipartPreview(selectedRectangleData); // Clear any existing clipart preview
             } else if (typeSelect.value === 'image') {
                 imageOptionsPanel.style.display = 'block';
                 if (typeof selectedRectangleData.clipart_id === 'undefined') {
-                     selectedRectangleData.clipart_id = ''; 
+                     selectedRectangleData.clipart_id = '';
                 }
-                delete selectedRectangleData.text_options;
-                clearTextPreview(selectedRectangleData); 
+                delete selectedRectangleData.text_options; // Remove text options if switching to image
+                clearTextPreview(selectedRectangleData); // Clear any existing text preview
+                updateClipartPreview(selectedRectangleData); // Show clipart preview
             } else {
+                // For types other than 'text' or 'image'
                 delete selectedRectangleData.text_options;
                 delete selectedRectangleData.clipart_id;
-                clearTextPreview(selectedRectangleData); 
+                clearTextPreview(selectedRectangleData);
+                clearClipartPreview(selectedRectangleData);
             }
             console.log('Updated rectangle type. All rectangles:', drawnRectanglesData);
             console.log('Selected rectangle data:', selectedRectangleData);
@@ -340,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
     imageClipartSelect.addEventListener('change', () => {
         if (selectedRectangleData && selectedRectangleData.type === 'image') {
             selectedRectangleData.clipart_id = imageClipartSelect.value;
-            // Future: Update image preview if implementing clipart preview
+            updateClipartPreview(selectedRectangleData); // Update image preview
             console.log('Updated clipart_id. All rectangles:', drawnRectanglesData);
             console.log('Selected rectangle data:', selectedRectangleData);
         }
@@ -365,9 +425,11 @@ document.addEventListener('DOMContentLoaded', () => {
         areaData.element = rectElement;
 
         if (areaData.type === 'text') {
-            updateTextPreview(areaData); 
+            updateTextPreview(areaData);
+        } else if (areaData.type === 'image') {
+            updateClipartPreview(areaData); // Add this for clipart preview on load
         }
-        return areaData; 
+        return areaData;
     }
 
     function initializeDesigner() {
@@ -375,18 +437,18 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const parsedConfig = JSON.parse(ppDesignerData.saved_config);
                 if (Array.isArray(parsedConfig) && parsedConfig.length > 0) {
-                    drawnRectanglesData = parsedConfig.map(area => redrawAreaFromData(area)); 
+                    drawnRectanglesData = parsedConfig.map(area => redrawAreaFromData(area));
                     console.log('Designer initialized with saved configuration:', drawnRectanglesData);
                 } else {
-                    drawnRectanglesData = []; 
+                    drawnRectanglesData = [];
                     console.log('Saved configuration is empty or invalid. Initializing with no areas.');
                 }
             } catch (error) {
                 console.error('Error parsing saved configuration:', error);
-                drawnRectanglesData = []; 
+                drawnRectanglesData = [];
             }
         } else {
-            drawnRectanglesData = []; 
+            drawnRectanglesData = [];
             console.log('No saved configuration found. Initializing with no areas.');
         }
     }
