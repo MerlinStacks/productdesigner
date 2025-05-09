@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDrawing = false;
     let startX, startY;
     let currentDrawingRectangleElement = null; // The DOM element being drawn
-    const drawnRectanglesData = []; // Array to store data of all drawn rectangles { x, y, width, height, name, element }
+    let drawnRectanglesData = []; // Array to store data of all drawn rectangles { x, y, width, height, name, element } - Will be initialized later
     let selectedRectangleData = null; // The data object of the selected rectangle
     
     const styleDefaults = {
@@ -182,5 +182,138 @@ document.addEventListener('DOMContentLoaded', () => {
     const img = canvasArea.querySelector('img');
     if (img) {
         img.addEventListener('dragstart', (e) => e.preventDefault());
+    }
+
+    function redrawAreaFromData(areaData) {
+        const rectElement = document.createElement('div');
+        rectElement.style.position = 'absolute';
+        rectElement.style.left = areaData.x + 'px';
+        rectElement.style.top = areaData.y + 'px';
+        rectElement.style.width = areaData.width + 'px';
+        rectElement.style.height = areaData.height + 'px';
+        rectElement.classList.add('drawn-personalization-rectangle');
+        applyStyle(rectElement, styleDefaults); // Apply default style
+
+        // Add to canvas
+        canvasArea.appendChild(rectElement);
+
+        // Update the areaData object with the created element
+        areaData.element = rectElement;
+
+        // Make it selectable - event listener is on canvasArea, so class is enough
+        // console.log('Redrawn area from data:', areaData);
+        return areaData; // Return the updated areaData with the element
+    }
+
+    function initializeDesigner() {
+        if (typeof ppDesignerData !== 'undefined' && ppDesignerData.saved_config) {
+            try {
+                const parsedConfig = JSON.parse(ppDesignerData.saved_config);
+                if (Array.isArray(parsedConfig) && parsedConfig.length > 0) {
+                    drawnRectanglesData = parsedConfig.map(area => redrawAreaFromData(area));
+                    console.log('Designer initialized with saved configuration:', drawnRectanglesData);
+                } else {
+                    drawnRectanglesData = []; // Initialize as empty if config is empty or invalid
+                    console.log('Saved configuration is empty or invalid. Initializing with no areas.');
+                }
+            } catch (error) {
+                console.error('Error parsing saved configuration:', error);
+                drawnRectanglesData = []; // Initialize as empty on error
+            }
+        } else {
+            drawnRectanglesData = []; // Initialize as empty if no saved config
+            console.log('No saved configuration found. Initializing with no areas.');
+        }
+    }
+
+    initializeDesigner(); // Call this to load config on DOMContentLoaded
+
+    // Save Configuration Button Logic
+    const saveButton = document.getElementById('save_personalization_config_button');
+    const saveStatusSpan = document.getElementById('personalization_save_status');
+
+    if (saveButton && saveStatusSpan) {
+        saveButton.addEventListener('click', () => {
+            console.log('Save Configuration button clicked.');
+            saveStatusSpan.textContent = 'Saving...';
+            saveButton.disabled = true;
+
+            // Prepare data for AJAX request
+            // The ppDesignerData object is available due to wp_localize_script
+            const productId = ppDesignerData.product_id;
+            const nonce = ppDesignerData.save_nonce;
+            const ajaxUrl = ppDesignerData.ajax_url;
+            const action = ppDesignerData.save_action;
+
+            // We need to send only the data, not the DOM elements
+            const configDataToSave = drawnRectanglesData.map(rect => {
+                // Create a new object without the 'element' property
+                const { element, ...rest } = rect;
+                return rest;
+            });
+
+            const data = new URLSearchParams();
+            data.append('action', action);
+            data.append('nonce', nonce);
+            data.append('product_id', productId);
+            data.append('config_data', JSON.stringify(configDataToSave));
+
+            console.log('Sending AJAX request with data:', {
+                action: action,
+                nonce: nonce,
+                product_id: productId,
+                config_data: JSON.stringify(configDataToSave)
+            });
+
+            fetch(ajaxUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: data,
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // Try to get error message from response body if it's JSON
+                    return response.json().then(err => { throw err; }).catch(() => {
+                        // If not JSON, or JSON parsing fails, throw a generic error
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(result => {
+                console.log('AJAX Success:', result);
+                if (result.success) {
+                    saveStatusSpan.textContent = result.data.message || 'Saved successfully!';
+                    saveStatusSpan.style.color = 'green';
+                } else {
+                    saveStatusSpan.textContent = 'Error: ' + (result.data.message || 'Unknown error');
+                    saveStatusSpan.style.color = 'red';
+                }
+            })
+            .catch(error => {
+                console.error('AJAX Error:', error);
+                let errorMessage = 'AJAX request failed.';
+                if (error && error.message) {
+                    errorMessage = error.message;
+                } else if (typeof error === 'string') {
+                    errorMessage = error;
+                }
+                saveStatusSpan.textContent = 'Error: ' + errorMessage;
+                saveStatusSpan.style.color = 'red';
+            })
+            .finally(() => {
+                saveButton.disabled = false;
+                // Optionally clear the status message after a few seconds
+                setTimeout(() => {
+                    saveStatusSpan.textContent = '';
+                }, 5000);
+            });
+        });
+    } else {
+        console.warn('Save button or status span not found.');
+        if (!saveButton) console.warn('Save button (#save_personalization_config_button) is missing.');
+        if (!saveStatusSpan) console.warn('Status span (#personalization_save_status) is missing.');
     }
 });

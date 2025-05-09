@@ -43,6 +43,9 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
         // Add WooCommerce product data tabs and panels
         add_filter('woocommerce_product_data_tabs', array($this, 'add_personalization_product_data_tab'));
         add_action('woocommerce_product_data_panels', array($this, 'display_personalization_product_data_panel'));
+
+        // AJAX handler for saving personalization config
+        add_action('wp_ajax_product_personalizer_save_config', array($this, 'ajax_save_personalization_config'));
     }
 
     /**
@@ -645,6 +648,22 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
                     array('jquery'), // Add other dependencies if needed, e.g., for fabric.js later
                     '1.0.0', // Consider using a plugin version constant
                     true // Load in footer
+                );
+
+                // Localize script with AJAX URL, nonce, and product ID
+                global $post;
+                $product_id = $post ? $post->ID : 0;
+
+                wp_localize_script(
+                    'product-personalizer-designer-scripts',
+                    'ppDesignerData',
+                    array(
+                        'ajax_url' => admin_url('admin-ajax.php'),
+                        'save_nonce' => wp_create_nonce('product_personalizer_save_config_nonce'),
+                        'product_id' => $product_id,
+                        'save_action' => 'product_personalizer_save_config',
+                        'saved_config' => get_post_meta($product_id, '_product_personalization_config_json', true) ?: null,
+                    )
                 );
                 // Potentially enqueue specific styles for the designer area too
                 // wp_enqueue_style('product-personalizer-designer-styles', plugin_dir_url(__FILE__) . '../../assets/css/product-designer.css');
@@ -1407,6 +1426,94 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
         echo '</div>';
 
         // Placeholder for other designer UI components
+        echo '</div>'; // Close personalization_settings_panel
+
+        // Save Configuration Button
+        echo '<div style="margin-top: 20px;">';
+        echo '<button type="button" id="save_personalization_config_button" class="button button-primary">' . __('Save Configuration', 'product-personalizer') . '</button>';
+        echo '<span id="personalization_save_status" style="margin-left: 10px;"></span>';
         echo '</div>';
     }
-}
+
+    /**
+     * AJAX handler for saving personalization configuration.
+     */
+    public function ajax_save_personalization_config() {
+        // 1. Verify Nonce
+        check_ajax_referer('product_personalizer_save_config_nonce', 'nonce');
+
+        // 2. Check User Capabilities
+        if (!current_user_can('edit_products')) {
+            wp_send_json_error(array('message' => __('You do not have permission to save this configuration.', 'product-personalizer')), 403);
+            return;
+        }
+
+        // 3. Get and Sanitize Data
+        $product_id = isset($_POST['product_id']) ? absint($_POST['product_id']) : 0;
+        // stripslashes_deep because wp_ajax might add them to JSON string which could be an array of objects
+        $config_data_json = isset($_POST['config_data']) ? stripslashes_deep($_POST['config_data']) : '';
+
+
+        if (empty($product_id)) {
+            wp_send_json_error(array('message' => __('Invalid Product ID.', 'product-personalizer')), 400);
+            return;
+        }
+
+        // Allow saving empty configuration to clear it
+        if (empty($config_data_json)) {
+            update_post_meta($product_id, '_product_personalization_config_json', '');
+            wp_send_json_success(array('message' => __('Configuration cleared successfully.', 'product-personalizer')));
+            return;
+        }
+
+        // 4. Validate JSON
+        // json_decode expects a string. If stripslashes_deep turned it into an array, this will fail.
+        // However, config_data is sent as JSON.stringify, so it should be a string.
+        $config_data_array = json_decode($config_data_json, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            wp_send_json_error(array('message' => __('Invalid configuration data format: ', 'product-personalizer') . json_last_error_msg() . '. Input (first 200 chars): ' . esc_html(substr($config_data_json, 0, 200))), 400);
+            return;
+        }
+
+        // At this point, $config_data_array is a PHP array.
+        // For saving, we need the JSON string. $config_data_json is the original validated JSON string.
+        // If further sanitization of $config_data_array elements were done, it would need to be re-encoded.
+        // Example of deeper sanitization (if needed):
+        // if (is_array($config_data_array)) {
+        //     foreach ($config_data_array as &$area) {
+        //         // Sanitize each expected field in $area
+        //         if (isset($area['name'])) $area['name'] = sanitize_text_field($area['name']);
+        //         if (isset($area['x'])) $area['x'] = absint($area['x']);
+        //         if (isset($area['y'])) $area['y'] = absint($area['y']);
+        //         if (isset($area['width'])) $area['width'] = absint($area['width']);
+        //         if (isset($area['height'])) $area['height'] = absint($area['height']);
+        //         if (isset($area['font_id'])) $area['font_id'] = sanitize_text_field($area['font_id']); // or absint if it's an ID
+        //         if (isset($area['color_hex'])) $area['color_hex'] = sanitize_hex_color($area['color_hex']);
+        //     }
+        //     $config_data_to_save = wp_json_encode($config_data_array);
+        // } else {
+        //    wp_send_json_error(array('message' => __('Configuration data must be an array of areas.', 'product-personalizer')), 400);
+        //    return;
+        // }
+        // For now, we save the $config_data_json as it was validated.
+
+        // 5. Save to Post Meta
+        $result = update_post_meta($product_id, '_product_personalization_config_json', $config_data_json);
+
+        if ($result === false) {
+            // update_post_meta returns false if the value is the same or on error.
+            $existing_meta = get_post_meta($product_id, '_product_personalization_config_json', true);
+            if ($existing_meta === $config_data_json) {
+                 wp_send_json_success(array('message' => __('Configuration is already up to date.', 'product-personalizer')));
+            } else {
+                wp_send_json_error(array('message' => __('Could not save configuration. An unknown error occurred.', 'product-personalizer')));
+            }
+        } elseif (is_wp_error($result)) {
+            wp_send_json_error(array('message' => $result->get_error_message()));
+        } else {
+            // $result is meta_id on success
+            wp_send_json_success(array('message' => __('Configuration saved successfully.', 'product-personalizer')));
+        }
+    }
+} // This is the closing brace for the class Product_Personalizer_Admin_Settings
