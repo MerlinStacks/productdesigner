@@ -1346,6 +1346,12 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
         echo '<div id="product_personalization_data" class="panel woocommerce_options_panel hidden">';
         echo '<h2>' . esc_html__('Product Personalization Setup', 'product-personalizer') . '</h2>';
         global $post;
+
+        // Instantiate AssetManager
+        $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
+        $available_fonts = $asset_manager->get_fonts();
+        $available_color_swatches = $asset_manager->get_color_swatches();
+
         $product = wc_get_product($post->ID);
         $image_url = '';
         if ($product) {
@@ -1370,6 +1376,33 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
         echo '<label for="personalization_area_name">' . esc_html__('Name/Label:', 'product-personalizer') . '</label>';
         echo '<input type="text" id="personalization_area_name" name="personalization_area_name" />';
         echo '</div>';
+
+        // Font Dropdown
+        echo '<div>';
+        echo '<label for="personalization_area_font">' . esc_html__('Font:', 'product-personalizer') . '</label>';
+        echo '<select id="personalization_area_font" name="personalization_area_font">';
+        echo '<option value="">' . esc_html__('-- Select Font --', 'product-personalizer') . '</option>';
+        if (!empty($available_fonts)) {
+            foreach ($available_fonts as $font) {
+                echo '<option value="' . esc_attr($font['id']) . '">' . esc_html($font['font_family']) . ' (' . esc_html($font['font_weight']) . ' ' . esc_html($font['font_style']) . ')</option>';
+            }
+        }
+        echo '</select>';
+        echo '</div>';
+
+        // Color Dropdown
+        echo '<div>';
+        echo '<label for="personalization_area_color">' . esc_html__('Color:', 'product-personalizer') . '</label>';
+        echo '<select id="personalization_area_color" name="personalization_area_color">';
+        echo '<option value="">' . esc_html__('-- Select Color --', 'product-personalizer') . '</option>';
+        if (!empty($available_color_swatches)) {
+            foreach ($available_color_swatches as $color_swatch) {
+                echo '<option value="' . esc_attr($color_swatch['hex_code']) . '">' . esc_html($color_swatch['label']) . ' (' . esc_html($color_swatch['hex_code']) . ')</option>';
+            }
+        }
+        echo '</select>';
+        echo '</div>';
+
         echo '<!-- More properties will be added here later -->';
         echo '</div>';
 

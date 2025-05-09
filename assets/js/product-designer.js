@@ -4,13 +4,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvasArea = document.getElementById('product_personalization_canvas_area');
     const propertiesPanel = document.getElementById('personalization_area_properties_panel');
     const areaNameInput = document.getElementById('personalization_area_name');
+    const fontSelect = document.getElementById('personalization_area_font');
+    const colorSelect = document.getElementById('personalization_area_color');
 
-    if (!canvasArea || !propertiesPanel || !areaNameInput) {
-        console.warn('Required elements for product designer not found. Canvas:', !!canvasArea, 'Panel:', !!propertiesPanel, 'NameInput:', !!areaNameInput);
+    if (!canvasArea || !propertiesPanel || !areaNameInput || !fontSelect || !colorSelect) {
+        console.warn('Required elements for product designer not found. Canvas:', !!canvasArea, 'Panel:', !!propertiesPanel, 'NameInput:', !!areaNameInput, 'FontSelect:', !!fontSelect, 'ColorSelect:', !!colorSelect);
         return;
     }
 
-    console.log('Product Personalization Canvas Area and Properties Panel Found.');
+    console.log('Product Personalization Canvas Area, Properties Panel, Font Select, and Color Select Found.');
 
     if (getComputedStyle(canvasArea).position === 'static') {
         canvasArea.style.position = 'relative';
@@ -49,6 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedRectangleData && selectedRectangleData.element) {
             applyStyle(selectedRectangleData.element, styleSelected);
             areaNameInput.value = selectedRectangleData.name || '';
+            // Populate/Select on Area Selection
+            fontSelect.value = selectedRectangleData.font_id || '';
+            colorSelect.value = selectedRectangleData.color_hex || selectedRectangleData.color_id || ''; // Prioritize hex if available
             propertiesPanel.style.display = 'block';
             console.log('Selected rectangle:', selectedRectangleData);
         }
@@ -61,6 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedRectangleData = null;
         propertiesPanel.style.display = 'none';
         areaNameInput.value = '';
+        fontSelect.value = '';
+        colorSelect.value = '';
         console.log('Deselected rectangle.');
     }
 
@@ -150,6 +157,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedRectangleData) {
             selectedRectangleData.name = areaNameInput.value;
             console.log('Updated rectangle name. All rectangles:', drawnRectanglesData);
+        }
+    });
+
+    fontSelect.addEventListener('change', () => {
+        if (selectedRectangleData) {
+            selectedRectangleData.font_id = fontSelect.value;
+            console.log('Updated rectangle font_id. All rectangles:', drawnRectanglesData);
+        }
+    });
+
+    colorSelect.addEventListener('change', () => {
+        if (selectedRectangleData) {
+            // Assuming we store hex code directly. If it's an ID, adjust accordingly.
+            selectedRectangleData.color_hex = colorSelect.value;
+            // If you need to store color_id as well, you might need to adjust how options are valued or fetch it
+            // For now, we'll assume the value of the color select is the hex code or a relevant ID.
+            // If it's an ID, you might name the property `color_id` instead of `color_hex`.
+            console.log('Updated rectangle color_hex/color_id. All rectangles:', drawnRectanglesData);
         }
     });
 
