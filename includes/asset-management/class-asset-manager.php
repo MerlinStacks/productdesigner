@@ -164,6 +164,71 @@ class Asset_Manager implements AssetManagerInterface {
     }
 
     /**
+     * Adds a new color swatch asset.
+     *
+     * @param array $color_data Array containing color swatch data (e.g., 'label', 'hex_code').
+     * @return int|\WP_Error The new asset ID on success, or WP_Error on failure.
+     */
+    public function add_color_swatch( array $color_data ) {
+        global $wpdb;
+        $table_name_assets = $wpdb->prefix . 'product_personalizer_assets';
+        $table_name_colors = $wpdb->prefix . 'product_personalizer_color_assets';
+
+        // 1. Accept color swatch metadata.
+        $label = isset( $color_data['label'] ) ? sanitize_text_field( $color_data['label'] ) : '';
+        $hex_code = isset( $color_data['hex_code'] ) ? sanitize_text_field( $color_data['hex_code'] ) : '';
+
+        // 2. Security & Validation.
+        if ( empty( $label ) ) {
+            return new WP_Error( 'missing_label', __( 'Color swatch label is required.', 'product-personalizer' ) );
+        }
+
+        // Validate hex code format (basic validation).
+        if ( ! preg_match( '/^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/', $hex_code ) ) {
+             return new WP_Error( 'invalid_hex_code', __( 'Invalid hex color code format.', 'product-personalizer' ) );
+        }
+
+
+        // 3. Database Interaction.
+        // Insert into main assets table.
+        $asset_data = [
+            'type'       => 'color',
+            'name'       => $label, // Use label as asset name.
+            'created_at' => current_time( 'mysql' ),
+            'updated_at' => current_time( 'mysql' ),
+            'created_by' => get_current_user_id(),
+            'status'     => 'active',
+        ];
+
+        $wpdb->insert( $table_name_assets, $asset_data );
+
+        $asset_id = $wpdb->insert_id;
+
+        if ( ! $asset_id ) {
+            return new WP_Error( 'db_insert_failed', __( 'Failed to insert asset into database.', 'product-personalizer' ) );
+        }
+
+        // Insert into color-specific asset table.
+        $color_asset_data = [
+            'asset_id' => $asset_id,
+            'hex_code' => $hex_code,
+            'label'    => $label,
+            // Add other color-specific fields if needed (rgb_value, cmyk_value, pantone, palette_id).
+        ];
+
+        $wpdb->insert( $table_name_colors, $color_asset_data );
+
+        if ( ! $wpdb->insert_id ) {
+            // Clean up main asset record if color insertion fails.
+            $wpdb->delete( $table_name_assets, [ 'id' => $asset_id ] );
+            return new WP_Error( 'db_insert_failed', __( 'Failed to insert color asset details into database.', 'product-personalizer' ) );
+        }
+
+        // 4. Return Value.
+        return $asset_id;
+    }
+
+    /**
      * Retrieves asset data by ID.
      *
      * @param int $asset_id The ID of the asset.
@@ -278,11 +343,6 @@ class Asset_Manager implements AssetManagerInterface {
             return new WP_Error( 'asset_not_found', __( 'Asset not found.', 'product-personalizer' ) );
         }
 
-        // Ensure the asset is a font.
-        if ( 'font' !== $existing_asset->type ) {
-            return new WP_Error( 'invalid_asset_type', __( 'Asset is not a font.', 'product-personalizer' ) );
-        }
-
         // 2. Validate provided metadata.
         if ( empty( $metadata ) || ! is_array( $metadata ) ) {
             return new WP_Error( 'invalid_metadata', __( 'Invalid metadata provided.', 'product-personalizer' ) );
@@ -293,8 +353,9 @@ class Asset_Manager implements AssetManagerInterface {
             'updated_at' => current_time( 'mysql' ),
         ];
 
-        // Prepare data for updating the font-specific table.
-        $font_update_data = [];
+        // Prepare data for updating the type-specific table.
+        $type_specific_update_data = [];
+        $type_specific_table_name = '';
 
         // Handle common asset metadata updates.
         if ( isset( $metadata['name'] ) ) {
@@ -308,103 +369,143 @@ class Asset_Manager implements AssetManagerInterface {
         }
         // Add other common fields as needed.
 
-        // Handle font-specific metadata updates.
-        if ( isset( $metadata['font_family'] ) ) {
-            $font_update_data['font_family'] = sanitize_text_field( $metadata['font_family'] );
+        // Handle type-specific metadata updates.
+        switch ( $existing_asset->type ) {
+            case 'font':
+                $type_specific_table_name = $wpdb->prefix . 'product_personalizer_fonts';
+                if ( isset( $metadata['font_family'] ) ) {
+                    $type_specific_update_data['font_family'] = sanitize_text_field( $metadata['font_family'] );
+                }
+                if ( isset( $metadata['font_weight'] ) ) {
+                    $type_specific_update_data['font_weight'] = sanitize_text_field( $metadata['font_weight'] );
+                }
+                if ( isset( $metadata['font_style'] ) ) {
+                    $type_specific_update_data['font_style'] = sanitize_text_field( $metadata['font_style'] );
+                }
+                if ( isset( $metadata['source'] ) ) {
+                    $type_specific_update_data['source'] = sanitize_text_field( $metadata['source'] );
+                }
+                if ( isset( $metadata['css_url'] ) ) {
+                    $type_specific_update_data['css_url'] = esc_url_raw( $metadata['css_url'] );
+                }
+                if ( isset( $metadata['variants'] ) ) {
+                    $type_specific_update_data['variants'] = json_encode( $metadata['variants'] );
+                }
+                 if ( isset( $metadata['license_info'] ) ) {
+                    $type_specific_update_data['license_info'] = sanitize_text_field( $metadata['license_info'] );
+                }
+                // Handle file upload for custom fonts if provided.
+                if ( 'custom' === $existing_asset->source && isset( $metadata['file_data'] ) && is_array( $metadata['file_data'] ) ) {
+                    $file_data = $metadata['file_data'];
+
+                    // Perform security checks on the new file.
+                    if ( ! isset( $file_data['error'] ) || is_array( $file_data['error'] ) ) {
+                        return new WP_Error( 'upload_error', __( 'Invalid upload parameters for file update.', 'product-personalizer' ) );
+                    }
+
+                    if ( $file_data['error'] !== UPLOAD_ERR_OK ) {
+                        return new WP_Error( 'upload_error_' . $file_data['error'], __( 'File upload failed for update.', 'product-personalizer' ) );
+                    }
+
+                    // Check file size (5MB limit).
+                    $max_size = 5 * 1024 * 1024;
+                    if ( $file_data['size'] > $max_size ) {
+                        return new WP_Error( 'file_size_limit', __( 'New file size exceeds the maximum allowed (5MB).', 'product-personalizer' ) );
+                    }
+
+                    // Check file type.
+                    $allowed_font_types = [
+                        'font/ttf',
+                        'font/otf',
+                        'font/woff',
+                        'font/woff2',
+                        'application/font-sfnt', // Common for TTF/OTF
+                        'application/font-woff',
+                        'application/font-woff2',
+                        'application/octet-stream', // Sometimes used for fonts
+                    ];
+
+                    $finfo = new \finfo( FILEINFO_MIME_TYPE );
+                    $mime_type = $finfo->file( $file_data['tmp_name'] );
+
+                    if ( ! in_array( $mime_type, $allowed_font_types ) ) {
+                        return new WP_Error( 'invalid_file_type', __( 'New file type not allowed for fonts.', 'product-personalizer' ) );
+                    }
+
+                    // Delete the old font file if it exists.
+                    if ( $existing_asset->file_path && file_exists( $existing_asset->file_path ) ) {
+                        unlink( $existing_asset->file_path );
+                    }
+
+                    // Securely move the new validated uploaded file.
+                    $upload_dir = wp_upload_dir();
+                    $font_dir  = $upload_dir['basedir'] . '/product-personalizer/fonts';
+
+                    if ( ! file_exists( $font_dir ) ) {
+                        wp_mkdir_p( $font_dir );
+                        // Add index.php to prevent directory listing.
+                        file_put_contents( $font_dir . '/index.php', '<?php // Silence is golden' );
+                    }
+
+                    $filename        = sanitize_file_name( $file_data['name'] );
+                    $filename        = wp_unique_filename( $font_dir, $filename );
+                    $new_file_path   = $font_dir . '/' . $filename;
+                    $new_file_url    = $upload_dir['baseurl'] . '/product-personalizer/fonts/' . $filename;
+
+                    if ( move_uploaded_file( $file_data['tmp_name'], $new_file_path ) ) {
+                        // Set correct file permissions.
+                        chmod( $new_file_path, 0644 );
+                        $asset_update_data['file_name'] = $filename;
+                        $asset_update_data['file_path'] = $new_file_path;
+                        $asset_update_data['url']       = $new_file_url;
+                        $asset_update_data['mime_type'] = $mime_type;
+                        $asset_update_data['file_size'] = $file_data['size'];
+                    } else {
+                        return new WP_Error( 'file_move_failed', __( 'Failed to move uploaded font file for update.', 'product-personalizer' ) );
+                    }
+                }
+                break;
+            case 'color':
+                $type_specific_table_name = $wpdb->prefix . 'product_personalizer_color_assets';
+                if ( isset( $metadata['label'] ) ) {
+                    $label = sanitize_text_field( $metadata['label'] );
+                    if ( empty( $label ) ) {
+                        return new WP_Error( 'missing_label', __( 'Color swatch label is required.', 'product-personalizer' ) );
+                    }
+                    $type_specific_update_data['label'] = $label;
+                    // Also update the main asset name if label is provided.
+                    $asset_update_data['name'] = $label;
+                }
+                if ( isset( $metadata['hex_code'] ) ) {
+                    $hex_code = sanitize_text_field( $metadata['hex_code'] );
+                    // Validate hex code format (basic validation).
+                    if ( ! preg_match( '/^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/', $hex_code ) ) {
+                         return new WP_Error( 'invalid_hex_code', __( 'Invalid hex color code format.', 'product-personalizer' ) );
+                    }
+                    $type_specific_update_data['hex_code'] = $hex_code;
+                }
+                if ( isset( $metadata['rgb_value'] ) ) {
+                    $type_specific_update_data['rgb_value'] = sanitize_text_field( $metadata['rgb_value'] );
+                }
+                if ( isset( $metadata['cmyk_value'] ) ) {
+                    $type_specific_update_data['cmyk_value'] = sanitize_text_field( $metadata['cmyk_value'] );
+                }
+                if ( isset( $metadata['pantone'] ) ) {
+                    $type_specific_update_data['pantone'] = sanitize_text_field( $metadata['pantone'] );
+                }
+                if ( isset( $metadata['palette_id'] ) ) {
+                    $type_specific_update_data['palette_id'] = absint( $metadata['palette_id'] );
+                }
+                break;
+            // Add cases for other asset types (clipart, etc.) as needed.
+            default:
+                return new WP_Error( 'invalid_asset_type', __( 'Unsupported asset type for update.', 'product-personalizer' ) );
         }
-        if ( isset( $metadata['font_weight'] ) ) {
-            $font_update_data['font_weight'] = sanitize_text_field( $metadata['font_weight'] );
-        }
-        if ( isset( $metadata['font_style'] ) ) {
-            $font_update_data['font_style'] = sanitize_text_field( $metadata['font_style'] );
-        }
-        if ( isset( $metadata['source'] ) ) {
-            $font_update_data['source'] = sanitize_text_field( $metadata['source'] );
-        }
-        if ( isset( $metadata['css_url'] ) ) {
-            $font_update_data['css_url'] = esc_url_raw( $metadata['css_url'] );
-        }
-        if ( isset( $metadata['variants'] ) ) {
-            $font_update_data['variants'] = json_encode( $metadata['variants'] );
-        }
-         if ( isset( $metadata['license_info'] ) ) {
-            $font_update_data['license_info'] = sanitize_text_field( $metadata['license_info'] );
-        }
-        // Add other font-specific fields as needed.
 
-        // Handle file upload for custom fonts if provided.
-        if ( 'custom' === $existing_asset->source && isset( $metadata['file_data'] ) && is_array( $metadata['file_data'] ) ) {
-            $file_data = $metadata['file_data'];
-
-            // Perform security checks on the new file.
-            if ( ! isset( $file_data['error'] ) || is_array( $file_data['error'] ) ) {
-                return new WP_Error( 'upload_error', __( 'Invalid upload parameters for file update.', 'product-personalizer' ) );
-            }
-
-            if ( $file_data['error'] !== UPLOAD_ERR_OK ) {
-                return new WP_Error( 'upload_error_' . $file_data['error'], __( 'File upload failed for update.', 'product-personalizer' ) );
-            }
-
-            // Check file size (5MB limit).
-            $max_size = 5 * 1024 * 1024;
-            if ( $file_data['size'] > $max_size ) {
-                return new WP_Error( 'file_size_limit', __( 'New file size exceeds the maximum allowed (5MB).', 'product-personalizer' ) );
-            }
-
-            // Check file type.
-            $allowed_font_types = [
-                'font/ttf',
-                'font/otf',
-                'font/woff',
-                'font/woff2',
-                'application/font-sfnt', // Common for TTF/OTF
-                'application/font-woff',
-                'application/font-woff2',
-                'application/octet-stream', // Sometimes used for fonts
-            ];
-
-            $finfo = new \finfo( FILEINFO_MIME_TYPE );
-            $mime_type = $finfo->file( $file_data['tmp_name'] );
-
-            if ( ! in_array( $mime_type, $allowed_font_types ) ) {
-                return new WP_Error( 'invalid_file_type', __( 'New file type not allowed for fonts.', 'product-personalizer' ) );
-            }
-
-            // Delete the old font file if it exists.
-            if ( $existing_asset->file_path && file_exists( $existing_asset->file_path ) ) {
-                unlink( $existing_asset->file_path );
-            }
-
-            // Securely move the new validated uploaded file.
-            $upload_dir = wp_upload_dir();
-            $font_dir  = $upload_dir['basedir'] . '/product-personalizer/fonts';
-
-            if ( ! file_exists( $font_dir ) ) {
-                wp_mkdir_p( $font_dir );
-                // Add index.php to prevent directory listing.
-                file_put_contents( $font_dir . '/index.php', '<?php // Silence is golden' );
-            }
-
-            $filename        = sanitize_file_name( $file_data['name'] );
-            $filename        = wp_unique_filename( $font_dir, $filename );
-            $new_file_path   = $font_dir . '/' . $filename;
-            $new_file_url    = $upload_dir['baseurl'] . '/product-personalizer/fonts/' . $filename;
-
-            if ( move_uploaded_file( $file_data['tmp_name'], $new_file_path ) ) {
-                // Set correct file permissions.
-                chmod( $new_file_path, 0644 );
-                $asset_update_data['file_name'] = $filename;
-                $asset_update_data['file_path'] = $new_file_path;
-                $asset_update_data['url']       = $new_file_url;
-                $asset_update_data['mime_type'] = $mime_type;
-                $asset_update_data['file_size'] = $file_data['size'];
-            } else {
-                return new WP_Error( 'file_move_failed', __( 'Failed to move uploaded font file for update.', 'product-personalizer' ) );
-            }
-        }
 
         // 4. Database Interaction.
         // Update main assets table.
+        $asset_updated = false;
         if ( ! empty( $asset_update_data ) ) {
             $asset_updated = $wpdb->update(
                 $table_name_assets,
@@ -413,8 +514,8 @@ class Asset_Manager implements AssetManagerInterface {
             );
 
             if ( false === $asset_updated ) {
-                 // If file was uploaded, clean it up on database update failure.
-                if ( isset( $asset_update_data['file_path'] ) && file_exists( $asset_update_data['file_path'] ) ) {
+                 // If file was uploaded for font, clean it up on database update failure.
+                if ( 'font' === $existing_asset->type && isset( $asset_update_data['file_path'] ) && file_exists( $asset_update_data['file_path'] ) ) {
                     unlink( $asset_update_data['file_path'] );
                 }
                 return new WP_Error( 'db_update_failed', __( 'Failed to update asset in database.', 'product-personalizer' ) );
@@ -422,26 +523,27 @@ class Asset_Manager implements AssetManagerInterface {
         }
 
 
-        // Update font-specific asset table.
-        if ( ! empty( $font_update_data ) ) {
-             $font_updated = $wpdb->update(
-                $table_name_fonts,
-                $font_update_data,
+        // Update type-specific asset table.
+        $type_specific_updated = false;
+        if ( ! empty( $type_specific_update_data ) && ! empty( $type_specific_table_name ) ) {
+             $type_specific_updated = $wpdb->update(
+                $type_specific_table_name,
+                $type_specific_update_data,
                 [ 'asset_id' => $asset_id ]
             );
 
-            if ( false === $font_updated ) {
-                 // If file was uploaded, clean it up on database update failure.
-                if ( isset( $asset_update_data['file_path'] ) && file_exists( $asset_update_data['file_path'] ) ) {
+            if ( false === $type_specific_updated ) {
+                 // If file was uploaded for font, clean it up on database update failure.
+                if ( 'font' === $existing_asset->type && isset( $asset_update_data['file_path'] ) && file_exists( $asset_update_data['file_path'] ) ) {
                     unlink( $asset_update_data['file_path'] );
                 }
-                return new WP_Error( 'db_update_failed', __( 'Failed to update font asset details in database.', 'product-personalizer' ) );
+                return new WP_Error( 'db_update_failed', __( 'Failed to update asset details in database.', 'product-personalizer' ) );
             }
         }
 
         // 5. Return Value.
-        // Check if either table was updated or if a file was handled.
-        if ( ( ! empty( $asset_update_data ) && false !== $asset_updated ) || ( ! empty( $font_update_data ) && false !== $font_updated ) || ( isset( $metadata['file_data'] ) && is_array( $metadata['file_data'] ) && false !== $asset_updated ) ) {
+        // Check if either table was updated or if a file was handled (for fonts).
+        if ( ( ! empty( $asset_update_data ) && false !== $asset_updated ) || ( ! empty( $type_specific_update_data ) && false !== $type_specific_updated ) || ( 'font' === $existing_asset->type && isset( $metadata['file_data'] ) && is_array( $metadata['file_data'] ) && false !== $asset_updated ) ) {
              return true;
         } else {
              // No data to update or update resulted in no changes.
@@ -500,6 +602,66 @@ class Asset_Manager implements AssetManagerInterface {
         }
 
         // Format results if necessary, though $wpdb->get_results often returns objects suitable for direct use.
+        // For now, return as is. Further formatting can be added if a specific structure is required.
+        return $results;
+    }
+
+    /**
+     * Retrieves color swatch asset data based on provided criteria.
+     *
+     * @param array $args Optional arguments for filtering (e.g., 'id', 'label', 'hex_code').
+     * @return array An array of color swatch objects on success, or an empty array if none found.
+     */
+    public function get_color_swatches( array $args = [] ): array {
+        global $wpdb;
+        $table_name_assets = $wpdb->prefix . 'product_personalizer_assets';
+        $table_name_colors = $wpdb->prefix . 'product_personalizer_color_assets';
+
+        $sql = "SELECT a.*, c.*
+                FROM {$table_name_assets} a
+                JOIN {$table_name_colors} c ON a.id = c.asset_id
+                WHERE a.type = 'color'";
+
+        $where_clauses = [];
+        $params = [];
+
+        if ( ! empty( $args['id'] ) ) {
+            $where_clauses[] = "a.id = %d";
+            $params[] = $args['id'];
+        }
+
+        if ( ! empty( $args['label'] ) ) {
+            $where_clauses[] = "c.label = %s";
+            $params[] = $args['label'];
+        }
+
+        if ( ! empty( $args['hex_code'] ) ) {
+            $where_clauses[] = "c.hex_code = %s";
+            $params[] = $args['hex_code'];
+        }
+
+        if ( ! empty( $args['palette_id'] ) ) {
+             $where_clauses[] = "c.palette_id = %d";
+             $params[] = $args['palette_id'];
+        }
+
+        // Add more filtering options as needed based on schema
+
+        if ( ! empty( $where_clauses ) ) {
+            $sql .= " AND " . implode( " AND ", $where_clauses );
+        }
+
+        $sql .= " AND a.status = 'active'"; // Only retrieve active color swatches.
+
+        $prepared_sql = $wpdb->prepare( $sql, $params );
+
+        $results = $wpdb->get_results( $prepared_sql );
+
+        if ( ! $results ) {
+            return [];
+        }
+
+        // Format results if necessary. $wpdb->get_results often returns objects suitable for direct use.
         // For now, return as is. Further formatting can be added if a specific structure is required.
         return $results;
     }
