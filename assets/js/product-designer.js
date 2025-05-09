@@ -6,13 +6,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const areaNameInput = document.getElementById('personalization_area_name');
     const fontSelect = document.getElementById('personalization_area_font');
     const colorSelect = document.getElementById('personalization_area_color');
+    const typeSelect = document.getElementById('personalization_area_type');
+    const textOptionsPanel = document.getElementById('text_options_panel');
+    const textDefaultInput = document.getElementById('personalization_text_default');
+    const textMaxLengthInput = document.getElementById('personalization_text_maxlength');
 
-    if (!canvasArea || !propertiesPanel || !areaNameInput || !fontSelect || !colorSelect) {
-        console.warn('Required elements for product designer not found. Canvas:', !!canvasArea, 'Panel:', !!propertiesPanel, 'NameInput:', !!areaNameInput, 'FontSelect:', !!fontSelect, 'ColorSelect:', !!colorSelect);
+    if (!canvasArea || !propertiesPanel || !areaNameInput || !fontSelect || !colorSelect || !typeSelect || !textOptionsPanel || !textDefaultInput || !textMaxLengthInput) {
+        console.warn('Required elements for product designer not found.', {
+            canvasArea: !!canvasArea,
+            propertiesPanel: !!propertiesPanel,
+            areaNameInput: !!areaNameInput,
+            fontSelect: !!fontSelect,
+            colorSelect: !!colorSelect,
+            typeSelect: !!typeSelect,
+            textOptionsPanel: !!textOptionsPanel,
+            textDefaultInput: !!textDefaultInput,
+            textMaxLengthInput: !!textMaxLengthInput
+        });
         return;
     }
 
-    console.log('Product Personalization Canvas Area, Properties Panel, Font Select, and Color Select Found.');
+    console.log('Product Personalization Canvas Area, Properties Panel, and all input/select elements Found.');
 
     if (getComputedStyle(canvasArea).position === 'static') {
         canvasArea.style.position = 'relative';
@@ -54,6 +68,24 @@ document.addEventListener('DOMContentLoaded', () => {
             // Populate/Select on Area Selection
             fontSelect.value = selectedRectangleData.font_id || '';
             colorSelect.value = selectedRectangleData.color_hex || selectedRectangleData.color_id || ''; // Prioritize hex if available
+            
+            // Populate Personalization Type and Text Options
+            typeSelect.value = selectedRectangleData.type || '';
+            if (selectedRectangleData.type === 'text') {
+                textOptionsPanel.style.display = 'block';
+                if (selectedRectangleData.text_options) {
+                    textDefaultInput.value = selectedRectangleData.text_options.default_text || '';
+                    textMaxLengthInput.value = selectedRectangleData.text_options.max_length || '';
+                } else {
+                    textDefaultInput.value = '';
+                    textMaxLengthInput.value = '';
+                }
+            } else {
+                textOptionsPanel.style.display = 'none';
+                textDefaultInput.value = '';
+                textMaxLengthInput.value = '';
+            }
+
             propertiesPanel.style.display = 'block';
             console.log('Selected rectangle:', selectedRectangleData);
         }
@@ -68,6 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
         areaNameInput.value = '';
         fontSelect.value = '';
         colorSelect.value = '';
+        typeSelect.value = '';
+        textOptionsPanel.style.display = 'none';
+        textDefaultInput.value = '';
+        textMaxLengthInput.value = '';
         console.log('Deselected rectangle.');
     }
 
@@ -175,6 +211,46 @@ document.addEventListener('DOMContentLoaded', () => {
             // For now, we'll assume the value of the color select is the hex code or a relevant ID.
             // If it's an ID, you might name the property `color_id` instead of `color_hex`.
             console.log('Updated rectangle color_hex/color_id. All rectangles:', drawnRectanglesData);
+        }
+    });
+
+    typeSelect.addEventListener('change', () => {
+        if (selectedRectangleData) {
+            selectedRectangleData.type = typeSelect.value;
+            if (typeSelect.value === 'text') {
+                textOptionsPanel.style.display = 'block';
+                // Initialize text_options if it doesn't exist
+                if (!selectedRectangleData.text_options) {
+                    selectedRectangleData.text_options = { default_text: '', max_length: '' };
+                }
+            } else {
+                textOptionsPanel.style.display = 'none';
+                // Optionally clear text_options or handle as needed
+            }
+            console.log('Updated rectangle type. All rectangles:', drawnRectanglesData);
+            console.log('Selected rectangle data:', selectedRectangleData);
+        }
+    });
+
+    textDefaultInput.addEventListener('input', () => {
+        if (selectedRectangleData && selectedRectangleData.type === 'text') {
+            if (!selectedRectangleData.text_options) {
+                selectedRectangleData.text_options = {};
+            }
+            selectedRectangleData.text_options.default_text = textDefaultInput.value;
+            console.log('Updated text_options.default_text. All rectangles:', drawnRectanglesData);
+            console.log('Selected rectangle data:', selectedRectangleData);
+        }
+    });
+
+    textMaxLengthInput.addEventListener('input', () => {
+        if (selectedRectangleData && selectedRectangleData.type === 'text') {
+            if (!selectedRectangleData.text_options) {
+                selectedRectangleData.text_options = {};
+            }
+            selectedRectangleData.text_options.max_length = textMaxLengthInput.value;
+            console.log('Updated text_options.max_length. All rectangles:', drawnRectanglesData);
+            console.log('Selected rectangle data:', selectedRectangleData);
         }
     });
 
