@@ -1363,6 +1363,16 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
         }
         echo '</div>';
 
+        // Properties Panel
+        echo '<div id="personalization_area_properties_panel" style="display:none; border:1px solid #ccc; padding:10px; margin-top:10px;">';
+        echo '<h4>' . esc_html__('Area Properties', 'product-personalizer') . '</h4>';
+        echo '<div>';
+        echo '<label for="personalization_area_name">' . esc_html__('Name/Label:', 'product-personalizer') . '</label>';
+        echo '<input type="text" id="personalization_area_name" name="personalization_area_name" />';
+        echo '</div>';
+        echo '<!-- More properties will be added here later -->';
+        echo '</div>';
+
         // Placeholder for other designer UI components
         echo '</div>';
     }
