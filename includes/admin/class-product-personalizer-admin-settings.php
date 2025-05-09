@@ -39,6 +39,10 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
         add_action('admin_post_product_personalizer_add_clipart', array($this, 'handle_add_clipart_submission'));
         add_action('admin_post_product_personalizer_delete_clipart', array($this, 'handle_delete_clipart_action'));
         add_action('admin_post_product_personalizer_update_clipart', array($this, 'handle_update_clipart_submission'));
+
+        // Add WooCommerce product data tabs and panels
+        add_filter('woocommerce_product_data_tabs', array($this, 'add_personalization_product_data_tab'));
+        add_action('woocommerce_product_data_panels', array($this, 'display_personalization_product_data_panel'));
     }
 
     /**
@@ -1301,5 +1305,32 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
         settings_errors(); // Display any accumulated settings errors before redirect
         wp_redirect($redirect_url);
         exit;
+    }
+
+    /**
+     * Add Personalization Product Data Tab.
+     *
+     * @param array $tabs Existing tabs.
+     * @return array Modified tabs.
+     */
+    public function add_personalization_product_data_tab($tabs) {
+        $tabs['personalization'] = array(
+            'label'    => __('Personalization', 'product-personalizer'),
+            'target'   => 'product_personalization_data',
+            'class'    => array('show_if_simple', 'show_if_variable'), // Adjust as needed
+            'priority' => 60, // Adjust as needed
+        );
+        return $tabs;
+    }
+
+    /**
+     * Display Personalization Product Data Panel Content.
+     */
+    public function display_personalization_product_data_panel() {
+        echo '<div id="product_personalization_data" class="panel woocommerce_options_panel hidden">';
+        echo '<h2>' . esc_html__('Product Personalization Setup', 'product-personalizer') . '</h2>';
+        echo '<p>' . esc_html__('Product designer interface will be here.', 'product-personalizer') . '</p>';
+        // Placeholder for the designer UI components
+        echo '</div>';
     }
 }
