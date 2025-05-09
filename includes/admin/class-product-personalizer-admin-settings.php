@@ -22,7 +22,7 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
      * @var array
      */
     private $settings;
-    
+
     /**
      * Constructor
      */
@@ -34,15 +34,17 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
         add_action('admin_post_product_personalizer_delete_font', array($this, 'handle_delete_font_action'));
         add_action('admin_post_product_personalizer_update_font', array($this, 'handle_update_font_submission'));
         add_action('admin_post_product_personalizer_add_color_swatch', array($this, 'handle_add_color_swatch_submission'));
+        add_action('admin_post_product_personalizer_delete_color_swatch', array($this, 'handle_delete_color_swatch_action'));
+add_action('admin_post_product_personalizer_update_color_swatch', array($this, 'handle_update_color_swatch_submission'));
     }
-    
+
     /**
      * Initialize the admin settings
      */
     public function init() {
         $this->settings = $this->get_settings();
     }
-    
+
     /**
      * Register the admin menu
      */
@@ -57,7 +59,7 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
             58
         );
     }
-    
+
     /**
      * Display the settings page
      * This method's content needs to be populated with the logic
@@ -271,70 +273,121 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
                 <h3>Color Swatches</h3>
                 <p>Manage color swatches here.</p>
 
-                <div class="add-new-color-swatch-form">
-                    <h3>Add New Color Swatch</h3>
-                    <form method="post">
-                        <?php wp_nonce_field('add_new_color_swatch_action', 'add_new_color_swatch_nonce'); ?>
-                        <input type="hidden" name="action" value="product_personalizer_add_color_swatch">
-                        <table class="form-table">
-                            <tr valign="top">
-                                <th scope="row"><label for="color_swatch_label">Label</label></th>
-                                <td><input type="text" name="color_swatch_label" id="color_swatch_label" value="" class="regular-text" required /></td>
-                            </tr>
-                            <tr valign="top">
-                                <th scope="row"><label for="color_swatch_hex">Hex Code</label></th>
-                                <td>
-                                    <input type="text" name="color_swatch_hex" id="color_swatch_hex" value="" class="regular-text" required />
-                                    <input type="color" id="color_swatch_hex_picker" value="#000000" style="vertical-align: middle;" />
-                                    <p class="description">Enter the hex code or use the color picker.</p>
-                                </td>
-                            </tr>
-                        </table>
-                        <p class="submit">
-                            <input type="submit" name="submit" id="submit" class="button button-primary" value="Add Color Swatch">
-                        </p>
-                    </form>
-                </div>
+                 <?php
+                 $action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : '';
+                 $color_swatch_id = isset($_GET['color_swatch_id']) ? absint($_GET['color_swatch_id']) : 0;
+                 $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
 
-                <?php
-                $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
-                $color_swatches = $asset_manager->get_color_swatches();
+                 if ($action === 'edit_color_swatch' && $color_swatch_id > 0) {
+                     $swatches_to_edit = $asset_manager->get_color_swatches(['id' => $color_swatch_id]);
+                     $swatch_to_edit = !empty($swatches_to_edit) ? $swatches_to_edit[0] : null;
 
-                if (!empty($color_swatches)) {
-                	?>
-                	<h3>Existing Color Swatches</h3>
-                	<table class="wp-list-table widefat striped">
-                		<thead>
-                			<tr>
-                				<th>Label</th>
-                				<th>Hex Code</th>
-                				<th>Actions</th>
-                			</tr>
-                		</thead>
-                		<tbody>
-                			<?php foreach ($color_swatches as $swatch) : ?>
-                				<tr>
-                					<td><?php echo esc_html($swatch['label']); ?></td>
-                					<td>
-                						<span style="display: inline-block; width: 20px; height: 20px; background-color: <?php echo esc_attr($swatch['hex_code']); ?>; vertical-align: middle; margin-right: 5px; border: 1px solid #ccc;"></span>
-                						<?php echo esc_html($swatch['hex_code']); ?>
-                					</td>
-                					<td>
-                						<a href="#" class="button button-small">Edit</a>
-                						<a href="#" class="button button-small button-danger">Delete</a>
-                					</td>
-                				</tr>
-                			<?php endforeach; ?>
-                		</tbody>
-                	</table>
-                	<?php
-                } else {
-                	?>
-                	<p>No color swatches added yet.</p>
-                	<?php
-                }
-                ?>
-               </div>
+                     if ($swatch_to_edit) {
+                         // Display Edit Color Swatch Form
+                         ?>
+                         <div class="edit-color-swatch-form">
+                             <h3>Edit Color Swatch: <?php echo esc_html($swatch_to_edit['label']); ?></h3>
+                             <form method="post">
+                                 <?php wp_nonce_field('update_color_swatch_action_' . $color_swatch_id, 'update_color_swatch_nonce'); ?>
+                                 <input type="hidden" name="action" value="product_personalizer_update_color_swatch">
+                                 <input type="hidden" name="color_swatch_id" value="<?php echo esc_attr($color_swatch_id); ?>">
+                                 <table class="form-table">
+                                     <tr valign="top">
+                                         <th scope="row"><label for="color_swatch_label">Label</label></th>
+                                         <td><input type="text" name="color_swatch_label" id="color_swatch_label" value="<?php echo esc_attr($swatch_to_edit['label']); ?>" class="regular-text" required /></td>
+                                     </tr>
+                                     <tr valign="top">
+                                         <th scope="row"><label for="color_swatch_hex">Hex Code</label></th>
+                                         <td>
+                                             <input type="text" name="color_swatch_hex" id="color_swatch_hex" value="<?php echo esc_attr($swatch_to_edit['hex_code']); ?>" class="regular-text" required />
+                                             <input type="color" id="color_swatch_hex_picker" value="<?php echo esc_attr($swatch_to_edit['hex_code']); ?>" style="vertical-align: middle;" />
+                                             <p class="description">Enter the hex code or use the color picker.</p>
+                                         </td>
+                                     </tr>
+                                 </table>
+                                 <p class="submit">
+                                     <input type="submit" name="submit" id="submit" class="button button-primary" value="Update Color Swatch">
+                                     <a href="<?php echo esc_url(admin_url('admin.php?page=product-personalizer-settings&tab=color-swatches')); ?>" class="button button-secondary">Cancel</a>
+                                 </p>
+                             </form>
+                         </div>
+                         <?php
+                     } else {
+                         // Color swatch not found error
+                         ?>
+                         <div class="error">
+                             <p>Error: Color Swatch with ID <?php echo esc_html($color_swatch_id); ?> not found.</p>
+                             <p><a href="<?php echo esc_url(admin_url('admin.php?page=product-personalizer-settings&tab=color-swatches')); ?>">Back to Color Swatches List</a></p>
+                         </div>
+                         <?php
+                     }
+                 } else {
+                     // Display Add New Color Swatch Form and Existing Color Swatches List
+                     ?>
+                     <div class="add-new-color-swatch-form">
+                         <h3>Add New Color Swatch</h3>
+                         <form method="post">
+                             <?php wp_nonce_field('add_new_color_swatch_action', 'add_new_color_swatch_nonce'); ?>
+                             <input type="hidden" name="action" value="product_personalizer_add_color_swatch">
+                             <table class="form-table">
+                                 <tr valign="top">
+                                     <th scope="row"><label for="color_swatch_label">Label</label></th>
+                                     <td><input type="text" name="color_swatch_label" id="color_swatch_label" value="" class="regular-text" required /></td>
+                                 </tr>
+                                 <tr valign="top">
+                                     <th scope="row"><label for="color_swatch_hex">Hex Code</label></th>
+                                     <td>
+                                         <input type="text" name="color_swatch_hex" id="color_swatch_hex" value="" class="regular-text" required />
+                                         <input type="color" id="color_swatch_hex_picker" value="#000000" style="vertical-align: middle;" />
+                                         <p class="description">Enter the hex code or use the color picker.</p>
+                                     </td>
+                                 </tr>
+                             </table>
+                             <p class="submit">
+                                 <input type="submit" name="submit" id="submit" class="button button-primary" value="Add Color Swatch">
+                             </p>
+                         </form>
+                     </div>
+
+                     <?php
+                     $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
+                     $color_swatches = $asset_manager->get_color_swatches();
+
+                     if (!empty($color_swatches)) {
+                     	?>
+                     	<h3>Existing Color Swatches</h3>
+                     	<table class="wp-list-table widefat striped">
+                     		<thead>
+                     			<tr>
+                     				<th>Label</th>
+                     				<th>Hex Code</th>
+                     				<th>Actions</th>
+                     			</tr>
+                     		</thead>
+                     		<tbody>
+                     			<?php foreach ($color_swatches as $swatch) : ?>
+                     				<tr>
+                     					<td><?php echo esc_html($swatch['label']); ?></td>
+                     					<td>
+                     						<span style="display: inline-block; width: 20px; height: 20px; background-color: <?php echo esc_attr($swatch['hex_code']); ?>; vertical-align: middle; margin-right: 5px; border: 1px solid #ccc;"></span>
+                     						<?php echo esc_html($swatch['hex_code']); ?>
+                     					</td>
+                     					<td>
+                     						<a href="<?php echo esc_url(admin_url('admin.php?page=product-personalizer-settings&tab=color-swatches&action=edit_color_swatch&color_swatch_id=' . $swatch['id'])); ?>" class="button button-small">Edit</a>
+                     						<a href="<?php echo esc_url(admin_url('admin-post.php?action=product_personalizer_delete_color_swatch&color_swatch_id=' . $swatch['id'] . '&_wpnonce=' . wp_create_nonce('delete_color_swatch_' . $swatch['id']))); ?>" class="button button-small button-danger">Delete</a>
+                     					</td>
+                     				</tr>
+                     			<?php endforeach; ?>
+                     		</tbody>
+                     	</table>
+                     	<?php
+                     } else {
+                     	?>
+                     	<p>No color swatches added yet.</p>
+                     	<?php
+                     }
+                     ?>
+                    </div>
             <div id="tab-content-clipart" class="tab-content" style="display: none;">
                 <h3>Clipart</h3>
                 <p>Manage clipart assets here.</p>
@@ -368,9 +421,9 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
                 });
             });
         </script>
-        <?php
+    <?php
     }
-    
+
     /**
      * Register settings
      */
@@ -386,7 +439,7 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
         );
         // Register other settings here
     }
-    
+
     /**
      * Render content for a specific tab (placeholder based on architect plan)
      *
@@ -397,7 +450,7 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
         // For now, it's a structural placeholder.
         echo '<p>Content for tab: ' . esc_html($tab) . '</p>';
     }
-    
+
     /**
      * Save settings (placeholder based on architect plan)
      *
@@ -409,7 +462,7 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
         // For 'product_personalizer_debug_mode', WordPress handles it via register_setting.
         return true;
     }
-    
+
     /**
      * Get current settings
      *
@@ -421,7 +474,7 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
         );
         return $settings;
     }
-    
+
     /**
      * Enqueue admin assets
      */
@@ -429,7 +482,7 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
         if ('toplevel_page_product-personalizer-settings' !== $hook) {
             return;
         }
-        
+
         // Ensure asset paths are correct relative to this file's location.
         // plugin_dir_url(__FILE__) from `includes/admin/` will be `.../wp-content/plugins/your-plugin/includes/admin/`
         // So `../../assets/css/admin.css` becomes `.../wp-content/plugins/your-plugin/assets/css/admin.css`
@@ -439,7 +492,7 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
             array(),
             '1.0.0' // Consider using a plugin version constant
         );
-        
+
         wp_enqueue_script(
             'product-personalizer-admin-scripts', // Unique handle
             plugin_dir_url(__FILE__) . '../../assets/js/admin.js',
@@ -675,7 +728,7 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
     }
 
     /**
-     * Handles the submission of the "Add Color Swatch" form.
+     * Handles the submission of the "Add New Color Swatch" form.
      */
     public function handle_add_color_swatch_submission() {
         // 1. Security Checks
@@ -706,9 +759,6 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
         // 3. Call AssetManager
         try {
             $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
-            // Assuming AssetManager has a method like add_color_swatch or upload_asset that handles color swatches
-            // Based on the existing font handler, upload_asset seems more likely, but let's assume add_color_swatch for now
-            // If add_color_swatch doesn't exist, we might need to adjust based on AssetManager's actual implementation
             $result = $asset_manager->add_color_swatch(
                 [
                     'label' => $label,
@@ -745,6 +795,66 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
     }
 
     /**
+     * Handles the deletion of a color swatch.
+     */
+    public function handle_delete_color_swatch_action() {
+        // 1. Security Checks
+        if (!isset($_GET['color_swatch_id']) || !isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'delete_color_swatch_' . $_GET['color_swatch_id'])) {
+            wp_die('Security check failed.');
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_die('You do not have sufficient permissions to perform this action.');
+        }
+
+        // 2. Data Retrieval & Sanitization
+        $color_swatch_id = isset($_GET['color_swatch_id']) ? absint($_GET['color_swatch_id']) : 0;
+
+        if (empty($color_swatch_id)) {
+            add_settings_error(
+                'product-personalizer-settings',
+                'color_swatch_delete_error',
+                'Invalid color swatch ID.',
+                'error'
+            );
+            $this->redirect_to_color_swatches_tab();
+            return;
+        }
+
+        // 3. Call AssetManager
+        try {
+            $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
+            $result = $asset_manager->delete_asset($color_swatch_id); // Assuming delete_asset handles color swatch deletion
+
+            // 4. Feedback & Redirect
+            if (is_wp_error($result)) {
+                add_settings_error(
+                    'product-personalizer-settings',
+                    'color_swatch_delete_error',
+                    'Failed to delete color swatch. Error: ' . $result->get_error_message(),
+                    'error'
+                );
+            } else {
+                add_settings_error(
+                    'product-personalizer-settings',
+                    'color_swatch_delete_success',
+                    'Color swatch deleted successfully.',
+                    'success'
+                );
+            }
+        } catch (\Exception $e) {
+            add_settings_error(
+                'product-personalizer-settings',
+                'color_swatch_delete_error',
+                'An unexpected error occurred: ' . $e->getMessage(),
+                'error'
+            );
+        }
+
+        $this->redirect_to_color_swatches_tab();
+    }
+
+    /**
      * Redirects the user back to the color swatches tab of the settings page.
      */
     private function redirect_to_color_swatches_tab() {
@@ -752,5 +862,74 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
         settings_errors(); // Display any accumulated settings errors before redirect
         wp_redirect($redirect_url);
         exit;
+    }
+/**
+     * Handles the submission of the "Update Color Swatch" form.
+     */
+    public function handle_update_color_swatch_submission() {
+        // 1. Security Checks
+        $color_swatch_id = isset($_POST['color_swatch_id']) ? absint($_POST['color_swatch_id']) : 0;
+
+        if (!isset($_POST['update_color_swatch_nonce']) || !wp_verify_nonce($_POST['update_color_swatch_nonce'], 'update_color_swatch_action_' . $color_swatch_id)) {
+            wp_die('Security check failed.');
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_die('You do not have sufficient permissions to perform this action.');
+        }
+
+        // 2. Data Retrieval & Sanitization
+        $label = isset($_POST['color_swatch_label']) ? sanitize_text_field($_POST['color_swatch_label']) : '';
+        $hex_code = isset($_POST['color_swatch_hex']) ? sanitize_hex_color($_POST['color_swatch_hex']) : '';
+
+        // Basic validation
+        if (empty($color_swatch_id) || empty($label) || empty($hex_code)) {
+            add_settings_error(
+                'product-personalizer-settings',
+                'color_swatch_update_error',
+                'Invalid Color Swatch ID, Label, or Hex Code.',
+                'error'
+            );
+            $this->redirect_to_color_swatches_tab();
+            return;
+        }
+
+        // 3. Call AssetManager
+        try {
+            $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
+            $result = $asset_manager->update_asset_metadata(
+                $color_swatch_id,
+                [
+                    'label' => $label,
+                    'hex_code' => $hex_code,
+                ]
+            );
+
+            // 4. Feedback & Redirect
+            if (is_wp_error($result)) {
+                add_settings_error(
+                    'product-personalizer-settings',
+                    'color_swatch_update_error',
+                    'Failed to update color swatch. Error: ' . $result->get_error_message(),
+                    'error'
+                );
+            } else {
+                add_settings_error(
+                    'product-personalizer-settings',
+                    'color_swatch_update_success',
+                    'Color swatch updated successfully.',
+                    'success'
+                );
+            }
+        } catch (\Exception $e) {
+            add_settings_error(
+                'product-personalizer-settings',
+                'color_swatch_update_error',
+                'An unexpected error occurred: ' . $e->getMessage(),
+                'error'
+            );
+        }
+
+        $this->redirect_to_color_swatches_tab();
     }
 }
