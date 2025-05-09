@@ -61,6 +61,58 @@ document.addEventListener('DOMContentLoaded', () => {
         element.style.backgroundColor = style.backgroundColor;
     }
 
+    function updateTextPreview(rectData) {
+        if (!rectData || !rectData.element || rectData.type !== 'text') {
+            if (rectData && rectData.element) clearTextPreview(rectData);
+            return;
+        }
+
+        let previewElement = rectData.element.querySelector('.text-preview-element');
+        if (!previewElement) {
+            previewElement = document.createElement('span');
+            previewElement.className = 'text-preview-element';
+            previewElement.style.position = 'absolute'; 
+            previewElement.style.top = '0';
+            previewElement.style.left = '0';
+            previewElement.style.width = '100%';
+            previewElement.style.height = '100%';
+            previewElement.style.display = 'flex';
+            previewElement.style.alignItems = 'center'; 
+            previewElement.style.justifyContent = 'center'; 
+            previewElement.style.padding = '2px'; 
+            previewElement.style.boxSizing = 'border-box';
+            previewElement.style.overflow = 'hidden'; 
+            previewElement.style.pointerEvents = 'none'; 
+            rectData.element.appendChild(previewElement);
+            rectData.element.style.overflow = 'hidden'; 
+        }
+
+        previewElement.innerText = rectData.text_options?.default_text || '';
+        previewElement.style.color = rectData.color_hex || '#000000'; 
+        previewElement.style.fontSize = '12px'; // Default font size for now
+
+        if (rectData.font_id && typeof ppDesignerData !== 'undefined' && ppDesignerData.fonts) {
+            const fontInfo = ppDesignerData.fonts.find(f => String(f.id) === String(rectData.font_id));
+            if (fontInfo && fontInfo.font_family) {
+                previewElement.style.fontFamily = fontInfo.font_family;
+            } else {
+                previewElement.style.fontFamily = 'sans-serif'; // Fallback
+            }
+        } else {
+            previewElement.style.fontFamily = 'sans-serif'; // Fallback
+        }
+        console.log('Updated text preview for:', rectData.name, previewElement.innerText);
+    }
+
+    function clearTextPreview(rectData) {
+        if (rectData && rectData.element) {
+            const previewElement = rectData.element.querySelector('.text-preview-element');
+            if (previewElement) {
+                previewElement.remove();
+            }
+        }
+    }
+
     function selectRectangle(rectData) {
         if (selectedRectangleData && selectedRectangleData.element) {
             applyStyle(selectedRectangleData.element, styleDefaults); // Deselect previous
@@ -69,14 +121,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedRectangleData && selectedRectangleData.element) {
             applyStyle(selectedRectangleData.element, styleSelected);
             areaNameInput.value = selectedRectangleData.name || '';
-            // Populate/Select on Area Selection
             fontSelect.value = selectedRectangleData.font_id || '';
-            colorSelect.value = selectedRectangleData.color_hex || selectedRectangleData.color_id || ''; // Prioritize hex if available
+            colorSelect.value = selectedRectangleData.color_hex || selectedRectangleData.color_id || ''; 
             
-            // Populate Personalization Type and Type-Specific Options
             typeSelect.value = selectedRectangleData.type || '';
             
-            // Hide all type-specific panels initially
             textOptionsPanel.style.display = 'none';
             imageOptionsPanel.style.display = 'none';
 
@@ -89,14 +138,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     textDefaultInput.value = '';
                     textMaxLengthInput.value = '';
                 }
+                updateTextPreview(selectedRectangleData); 
             } else if (selectedRectangleData.type === 'image') {
                 imageOptionsPanel.style.display = 'block';
                 imageClipartSelect.value = selectedRectangleData.clipart_id || '';
+                clearTextPreview(selectedRectangleData); 
             } else {
-                // Clear fields if no specific type or unknown type
                 textDefaultInput.value = '';
                 textMaxLengthInput.value = '';
                 imageClipartSelect.value = '';
+                clearTextPreview(selectedRectangleData); 
             }
 
             propertiesPanel.style.display = 'block';
@@ -107,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function deselectRectangle() {
         if (selectedRectangleData && selectedRectangleData.element) {
             applyStyle(selectedRectangleData.element, styleDefaults);
+            // No need to explicitly clear preview here, will be handled by next selection or if type changes
         }
         selectedRectangleData = null;
         propertiesPanel.style.display = 'none';
@@ -117,15 +169,14 @@ document.addEventListener('DOMContentLoaded', () => {
         textOptionsPanel.style.display = 'none';
         textDefaultInput.value = '';
         textMaxLengthInput.value = '';
-        imageOptionsPanel.style.display = 'none'; // New
-        imageClipartSelect.value = ''; // New
+        imageOptionsPanel.style.display = 'none'; 
+        imageClipartSelect.value = ''; 
         console.log('Deselected rectangle.');
     }
 
+
     canvasArea.addEventListener('mousedown', (e) => {
-        // If the click is on an existing drawn rectangle, its own listener will handle it.
         if (e.target.classList.contains('drawn-personalization-rectangle')) {
-            // Find the data object for the clicked rectangle and select it
             const clickedRectElement = e.target;
             const rectData = drawnRectanglesData.find(r => r.element === clickedRectElement);
             if (rectData) {
@@ -134,7 +185,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return; 
         }
 
-        // If click is on canvas (not a drawn rectangle), deselect current and start drawing
         if (e.target === canvasArea || (e.target.tagName === 'IMG' && e.target.parentElement === canvasArea)) {
             if (selectedRectangleData) {
                 deselectRectangle();
@@ -181,18 +231,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const finalWidth = parseInt(currentDrawingRectangleElement.style.width, 10);
         const finalHeight = parseInt(currentDrawingRectangleElement.style.height, 10);
 
-        if (finalWidth > 5 && finalHeight > 5) { // Minimum size for a rectangle
+        if (finalWidth > 5 && finalHeight > 5) { 
             const newRectData = {
                 x: parseInt(currentDrawingRectangleElement.style.left, 10),
                 y: parseInt(currentDrawingRectangleElement.style.top, 10),
                 width: finalWidth,
                 height: finalHeight,
-                name: '', // Initialize with an empty name
-                element: currentDrawingRectangleElement 
+                name: '', 
+                element: currentDrawingRectangleElement,
+                type: 'text', // Default new areas to text, or make this selectable
+                text_options: { default_text: '', max_length: '' } // Initialize text options
             };
             drawnRectanglesData.push(newRectData);
             
-            // The new rectangle is now selected
             selectRectangle(newRectData); 
 
             console.log('Mouseup - Rectangle finalized and selected:', newRectData);
@@ -201,10 +252,10 @@ document.addEventListener('DOMContentLoaded', () => {
             canvasArea.removeChild(currentDrawingRectangleElement);
             console.log('Mouseup - Rectangle too small, removed.');
         }
-        currentDrawingRectangleElement = null; // Reset for next drawing
+        currentDrawingRectangleElement = null; 
     });
 
-    areaNameInput.addEventListener('input', () => { // 'input' for real-time update, or 'blur'
+    areaNameInput.addEventListener('input', () => { 
         if (selectedRectangleData) {
             selectedRectangleData.name = areaNameInput.value;
             console.log('Updated rectangle name. All rectangles:', drawnRectanglesData);
@@ -215,17 +266,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedRectangleData) {
             selectedRectangleData.font_id = fontSelect.value;
             console.log('Updated rectangle font_id. All rectangles:', drawnRectanglesData);
+            if (selectedRectangleData.type === 'text') {
+                updateTextPreview(selectedRectangleData);
+            }
         }
     });
 
     colorSelect.addEventListener('change', () => {
         if (selectedRectangleData) {
-            // Assuming we store hex code directly. If it's an ID, adjust accordingly.
             selectedRectangleData.color_hex = colorSelect.value;
-            // If you need to store color_id as well, you might need to adjust how options are valued or fetch it
-            // For now, we'll assume the value of the color select is the hex code or a relevant ID.
-            // If it's an ID, you might name the property `color_id` instead of `color_hex`.
             console.log('Updated rectangle color_hex/color_id. All rectangles:', drawnRectanglesData);
+            if (selectedRectangleData.type === 'text') {
+                updateTextPreview(selectedRectangleData);
+            }
         }
     });
 
@@ -233,30 +286,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedRectangleData) {
             selectedRectangleData.type = typeSelect.value;
 
-            // Hide all type-specific panels initially
             textOptionsPanel.style.display = 'none';
             imageOptionsPanel.style.display = 'none';
 
             if (typeSelect.value === 'text') {
                 textOptionsPanel.style.display = 'block';
-                // Initialize text_options if it doesn't exist
                 if (!selectedRectangleData.text_options) {
                     selectedRectangleData.text_options = { default_text: '', max_length: '' };
                 }
-                // Clear clipart_id if switching from image to text
                 delete selectedRectangleData.clipart_id;
+                updateTextPreview(selectedRectangleData); 
             } else if (typeSelect.value === 'image') {
                 imageOptionsPanel.style.display = 'block';
-                // Initialize image_options or clipart_id if it doesn't exist
                 if (typeof selectedRectangleData.clipart_id === 'undefined') {
-                     selectedRectangleData.clipart_id = ''; // Initialize if not present
+                     selectedRectangleData.clipart_id = ''; 
                 }
-                // Clear text_options if switching from text to image
                 delete selectedRectangleData.text_options;
+                clearTextPreview(selectedRectangleData); 
             } else {
-                // If no specific type or unknown type, clear both specific options
                 delete selectedRectangleData.text_options;
                 delete selectedRectangleData.clipart_id;
+                clearTextPreview(selectedRectangleData); 
             }
             console.log('Updated rectangle type. All rectangles:', drawnRectanglesData);
             console.log('Selected rectangle data:', selectedRectangleData);
@@ -269,6 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectedRectangleData.text_options = {};
             }
             selectedRectangleData.text_options.default_text = textDefaultInput.value;
+            updateTextPreview(selectedRectangleData);
             console.log('Updated text_options.default_text. All rectangles:', drawnRectanglesData);
             console.log('Selected rectangle data:', selectedRectangleData);
         }
@@ -280,6 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectedRectangleData.text_options = {};
             }
             selectedRectangleData.text_options.max_length = textMaxLengthInput.value;
+            // No visual preview update needed for max_length
             console.log('Updated text_options.max_length. All rectangles:', drawnRectanglesData);
             console.log('Selected rectangle data:', selectedRectangleData);
         }
@@ -288,12 +340,12 @@ document.addEventListener('DOMContentLoaded', () => {
     imageClipartSelect.addEventListener('change', () => {
         if (selectedRectangleData && selectedRectangleData.type === 'image') {
             selectedRectangleData.clipart_id = imageClipartSelect.value;
+            // Future: Update image preview if implementing clipart preview
             console.log('Updated clipart_id. All rectangles:', drawnRectanglesData);
             console.log('Selected rectangle data:', selectedRectangleData);
         }
     });
 
-    // Prevent dragging image if canvasArea contains an image
     const img = canvasArea.querySelector('img');
     if (img) {
         img.addEventListener('dragstart', (e) => e.preventDefault());
@@ -307,17 +359,15 @@ document.addEventListener('DOMContentLoaded', () => {
         rectElement.style.width = areaData.width + 'px';
         rectElement.style.height = areaData.height + 'px';
         rectElement.classList.add('drawn-personalization-rectangle');
-        applyStyle(rectElement, styleDefaults); // Apply default style
+        applyStyle(rectElement, styleDefaults); 
 
-        // Add to canvas
         canvasArea.appendChild(rectElement);
-
-        // Update the areaData object with the created element
         areaData.element = rectElement;
 
-        // Make it selectable - event listener is on canvasArea, so class is enough
-        // console.log('Redrawn area from data:', areaData);
-        return areaData; // Return the updated areaData with the element
+        if (areaData.type === 'text') {
+            updateTextPreview(areaData); 
+        }
+        return areaData; 
     }
 
     function initializeDesigner() {
@@ -325,25 +375,24 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const parsedConfig = JSON.parse(ppDesignerData.saved_config);
                 if (Array.isArray(parsedConfig) && parsedConfig.length > 0) {
-                    drawnRectanglesData = parsedConfig.map(area => redrawAreaFromData(area));
+                    drawnRectanglesData = parsedConfig.map(area => redrawAreaFromData(area)); 
                     console.log('Designer initialized with saved configuration:', drawnRectanglesData);
                 } else {
-                    drawnRectanglesData = []; // Initialize as empty if config is empty or invalid
+                    drawnRectanglesData = []; 
                     console.log('Saved configuration is empty or invalid. Initializing with no areas.');
                 }
             } catch (error) {
                 console.error('Error parsing saved configuration:', error);
-                drawnRectanglesData = []; // Initialize as empty on error
+                drawnRectanglesData = []; 
             }
         } else {
-            drawnRectanglesData = []; // Initialize as empty if no saved config
+            drawnRectanglesData = []; 
             console.log('No saved configuration found. Initializing with no areas.');
         }
     }
 
-    initializeDesigner(); // Call this to load config on DOMContentLoaded
+    initializeDesigner(); 
 
-    // Save Configuration Button Logic
     const saveButton = document.getElementById('save_personalization_config_button');
     const saveStatusSpan = document.getElementById('personalization_save_status');
 
@@ -353,16 +402,12 @@ document.addEventListener('DOMContentLoaded', () => {
             saveStatusSpan.textContent = 'Saving...';
             saveButton.disabled = true;
 
-            // Prepare data for AJAX request
-            // The ppDesignerData object is available due to wp_localize_script
             const productId = ppDesignerData.product_id;
             const nonce = ppDesignerData.save_nonce;
             const ajaxUrl = ppDesignerData.ajax_url;
             const action = ppDesignerData.save_action;
 
-            // We need to send only the data, not the DOM elements
             const configDataToSave = drawnRectanglesData.map(rect => {
-                // Create a new object without the 'element' property
                 const { element, ...rest } = rect;
                 return rest;
             });
@@ -389,9 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(response => {
                 if (!response.ok) {
-                    // Try to get error message from response body if it's JSON
                     return response.json().then(err => { throw err; }).catch(() => {
-                        // If not JSON, or JSON parsing fails, throw a generic error
                         throw new Error(`HTTP error! status: ${response.status}`);
                     });
                 }
@@ -420,7 +463,6 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .finally(() => {
                 saveButton.disabled = false;
-                // Optionally clear the status message after a few seconds
                 setTimeout(() => {
                     saveStatusSpan.textContent = '';
                 }, 5000);

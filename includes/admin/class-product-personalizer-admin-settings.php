@@ -654,6 +654,10 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
                 global $post;
                 $product_id = $post ? $post->ID : 0;
 
+                // Instantiate AssetManager to get fonts
+                $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
+                $fonts = $asset_manager->get_fonts(); // Assuming get_fonts() returns an array of font objects/arrays
+
                 wp_localize_script(
                     'product-personalizer-designer-scripts',
                     'ppDesignerData',
@@ -663,6 +667,7 @@ add_action('admin_post_product_personalizer_update_color_swatch', array($this, '
                         'product_id' => $product_id,
                         'save_action' => 'product_personalizer_save_config',
                         'saved_config' => get_post_meta($product_id, '_product_personalization_config_json', true) ?: null,
+                        'fonts' => $fonts, // Add the fonts array here
                     )
                 );
                 // Potentially enqueue specific styles for the designer area too
