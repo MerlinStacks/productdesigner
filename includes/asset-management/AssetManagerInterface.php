@@ -1,47 +1,45 @@
 <?php
+
+namespace Custom_Products\Asset_Management;
+
 /**
- * Asset Manager Interface
+ * Interface for managing assets.
  *
- * Defines the interface for the Asset Management component.
- *
- * @package ProductPersonalizer
- * @subpackage AssetManagement
- * @since 1.0.0
+ * Defines the contract for classes that handle asset-related operations,
+ * such as uploading, retrieving, and managing asset data.
  */
-
-namespace ProductPersonalizer\AssetManagement;
-
-use WP_Error;
-
 interface AssetManagerInterface {
-    /**
-     * Upload and process a new asset
-     * @param array $file File data ($_FILES array format)
-     * @param string $type Asset type
-     * @param array $metadata Additional metadata
-     * @return array|WP_Error Asset data on success, WP_Error on failure
-     */
-    public function uploadAsset(array $file, string $type, array $metadata = []);
 
-    /**
-     * Get URL for an asset
-     * @param int $assetId Asset ID
-     * @return string|null Asset URL or null if not found
-     */
-    public function getAssetUrl(int $assetId): ?string;
+	/**
+	 * Uploads an asset.
+	 *
+	 * @param array $file_data Array of file data, typically from $_FILES.
+	 * @return int|\WP_Error The attachment ID on success, or WP_Error on failure.
+	 */
+	public function upload_asset( array $file_data );
 
-    /**
-     * Optimize an asset
-     * @param int $assetId Asset ID
-     * @param array $options Optimization options
-     * @return bool Success status
-     */
-    public function optimizeAsset(int $assetId, array $options = []): bool;
+	/**
+	 * Retrieves asset data by ID.
+	 *
+	 * @param int $asset_id The ID of the asset.
+	 * @return array|object|null Asset data on success, or null if not found.
+	 */
+	public function get_asset( int $asset_id );
 
-    /**
-     * Delete an asset
-     * @param int $assetId Asset ID
-     * @return bool Success status
-     */
-    public function deleteAsset(int $assetId): bool;
+	/**
+	 * Deletes an asset by ID.
+	 *
+	 * @param int $asset_id The ID of the asset.
+	 * @return bool|\WP_Error True on success, or WP_Error on failure.
+	 */
+	public function delete_asset( int $asset_id );
+
+	/**
+	 * Updates asset metadata.
+	 *
+	 * @param int $asset_id The ID of the asset.
+	 * @param array $metadata The metadata to update.
+	 * @return bool|\WP_Error True on success, or WP_Error on failure.
+	 */
+	public function update_asset_metadata( int $asset_id, array $metadata );
 }

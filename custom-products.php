@@ -19,6 +19,9 @@ defined( 'ABSPATH' ) or die( 'No script kiddies please!' );
 require_once plugin_dir_path(__FILE__) . 'includes/admin/interface-product-personalizer-admin-settings.php';
 require_once plugin_dir_path(__FILE__) . 'includes/admin/class-product-personalizer-admin-settings.php';
 
+// Include the Asset Database Manager class
+require_once plugin_dir_path(__FILE__) . 'includes/asset-management/class-asset-database-manager.php';
+
 // Initialize admin settings
 function initialize_product_personalizer_admin_settings() {
     // Ensure the namespace is correct when instantiating
@@ -26,3 +29,17 @@ function initialize_product_personalizer_admin_settings() {
     $admin_settings->init();
 }
 add_action('plugins_loaded', 'initialize_product_personalizer_admin_settings');
+
+/**
+ * Plugin activation hook.
+ * Creates necessary database tables.
+ */
+function product_personalizer_activate_plugin() {
+    // Ensure the namespace is correct
+    $db_manager = new \ProductPersonalizer\AssetManagement\Asset_Database_Manager();
+    // Call the method to create tables
+    if (method_exists($db_manager, 'create_tables')) {
+        $db_manager->create_tables();
+    }
+}
+register_activation_hook(__FILE__, 'product_personalizer_activate_plugin');
