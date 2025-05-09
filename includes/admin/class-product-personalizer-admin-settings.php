@@ -30,6 +30,7 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
         add_action('admin_menu', array($this, 'register_menu'));
         add_action('admin_init', array($this, 'register_settings'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_assets'));
+        add_action('admin_post_product_personalizer_add_font', array($this, 'handle_add_font_submission'));
     }
     
     /**
@@ -89,7 +90,101 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
             <div id="tab-content-fonts" class="tab-content" style="display: none;">
                 <h3>Fonts</h3>
                 <p>Manage font settings here.</p>
-                <?php // TEST: Ensure Fonts tab content area is present ?>
+                <div class="add-new-font-form">
+                    <h3>Add New Font</h3>
+                    <form method="post" enctype="multipart/form-data">
+                        <?php wp_nonce_field('add_new_font_action', 'add_new_font_nonce'); ?>
+                        <input type="hidden" name="action" value="product_personalizer_add_font">
+                        <table class="form-table">
+                            <tr valign="top">
+                                <th scope="row"><label for="font_name">Font Name/Family</label></th>
+                                <td><input type="text" name="font_name" id="font_name" value="" class="regular-text" required /></td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row"><label for="font_weight">Font Weight</label></th>
+                                <td>
+                                    <select name="font_weight" id="font_weight">
+                                        <option value="normal">Normal</option>
+                                        <option value="bold">Bold</option>
+                                        <?php for ($i = 100; $i <= 900; $i += 100) : ?>
+                                            <option value="<?php echo esc_attr($i); ?>"><?php echo esc_html($i); ?></option>
+                                        <?php endfor; ?>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row"><label for="font_style">Font Style</label></th>
+                                <td>
+                                    <select name="font_style" id="font_style">
+                                        <option value="normal">Normal</option>
+                                        <option value="italic">Italic</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row"><label for="font_source">Source</label></th>
+                                <td>
+                                    <select name="font_source" id="font_source">
+                                        <option value="google">Google</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr valign="top" class="custom-font-file-row">
+                                <th scope="row"><label for="custom_font_file">Custom Font File</label></th>
+                                <td><input type="file" name="custom_font_file" id="custom_font_file" /></td>
+                            </tr>
+                        </table>
+                        <p class="submit">
+                            <input type="submit" name="submit" id="submit" class="button button-primary" value="Add Font">
+                        </p>
+                    </form>
+                </div>
+
+                <?php
+                // Instantiate AssetManager
+                $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
+
+                // Fetch fonts
+                $fonts = $asset_manager->get_fonts();
+
+                if (!empty($fonts)) {
+                    ?>
+                    <h3>Existing Fonts</h3>
+                    <table class="wp-list-table widefat striped">
+                        <thead>
+                            <tr>
+                                <th>Font Name/Family</th>
+                                <th>Style</th>
+                                <th>Weight</th>
+                                <th>Source</th>
+                                <th>File URL</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($fonts as $font) : ?>
+                                <tr>
+                                    <td><?php echo esc_html($font['font_family']); ?></td>
+                                    <td><?php echo esc_html($font['font_style']); ?></td>
+                                    <td><?php echo esc_html($font['font_weight']); ?></td>
+                                    <td><?php echo esc_url($font['source']); ?></td>
+                                    <td><?php echo esc_url($font['file_url']); ?></td>
+                                    <td>
+                                        <a href="#" class="button button-small">Edit</a>
+                                        <a href="#" class="button button-small button-danger">Delete</a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    <?php
+                } else {
+                    ?>
+                    <p>No fonts added yet.</p>
+                    <?php
+                }
+                ?>
             </div>
             <div id="tab-content-color-swatches" class="tab-content" style="display: none;">
                 <h3>Color Swatches</h3>
@@ -208,5 +303,91 @@ class Product_Personalizer_Admin_Settings implements Product_Personalizer_Admin_
             '1.0.0', // Consider using a plugin version constant
             true
         );
+    }
+
+    /**
+     * Handles the submission of the "Add New Font" form.
+     */
+    public function handle_add_font_submission() {
+        // 1. Security Checks
+        if (!isset($_POST['add_new_font_nonce']) || !wp_verify_nonce($_POST['add_new_font_nonce'], 'add_new_font_action')) {
+            wp_die('Security check failed.');
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_die('You do not have sufficient permissions to perform this action.');
+        }
+
+        // 2. Data Retrieval & Sanitization
+        $font_name = isset($_POST['font_name']) ? sanitize_text_field($_POST['font_name']) : '';
+        $font_weight = isset($_POST['font_weight']) ? sanitize_text_field($_POST['font_weight']) : '';
+        $font_style = isset($_POST['font_style']) ? sanitize_text_field($_POST['font_style']) : '';
+        $font_source = isset($_POST['font_source']) ? sanitize_text_field($_POST['font_source']) : '';
+        $font_file = isset($_FILES['custom_font_file']) ? $_FILES['custom_font_file'] : null;
+
+        // Basic validation
+        if (empty($font_name) || empty($font_source)) {
+            add_settings_error(
+                'product-personalizer-settings',
+                'font_add_error',
+                'Font Name and Source are required.',
+                'error'
+            );
+            $this->redirect_to_fonts_tab();
+            return;
+        }
+
+        // 3. Call AssetManager
+        try {
+            $asset_manager = new \ProductPersonalizer\AssetManagement\AssetManager();
+            $result = $asset_manager->upload_asset(
+                [
+                    'name' => $font_name,
+                    'type' => 'font', // Assuming 'font' is the correct type for AssetManager
+                    'metadata' => [
+                        'weight' => $font_weight,
+                        'style' => $font_style,
+                        'source' => $font_source,
+                    ],
+                ],
+                $font_file
+            );
+
+            // 4. Feedback & Redirect
+            if (is_wp_error($result)) {
+                add_settings_error(
+                    'product-personalizer-settings',
+                    'font_add_error',
+                    'Failed to add font. Error: ' . $result->get_error_message(),
+                    'error'
+                );
+            } else {
+                add_settings_error(
+                    'product-personalizer-settings',
+                    'font_add_success',
+                    'Font added successfully.',
+                    'success'
+                );
+            }
+        } catch (\Exception $e) {
+            add_settings_error(
+                'product-personalizer-settings',
+                'font_add_error',
+                'An unexpected error occurred: ' . $e->getMessage(),
+                'error'
+            );
+        }
+
+        $this->redirect_to_fonts_tab();
+    }
+
+    /**
+     * Redirects the user back to the fonts tab of the settings page.
+     */
+    private function redirect_to_fonts_tab() {
+        $redirect_url = admin_url('admin.php?page=product-personalizer-settings&tab=fonts');
+        settings_errors(); // Display any accumulated settings errors before redirect
+        wp_redirect($redirect_url);
+        exit;
     }
 }
