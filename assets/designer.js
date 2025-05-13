@@ -3,7 +3,10 @@
     function renderMinimalDesigner() {
         var root = document.getElementById('ckpp-product-designer-root') || document.getElementById('ckpp-designer-modal');
         if (!root) return;
-        var designName = window.CKPP_DESIGN_TITLE || 'Untitled Design';
+        // Make designName a property of window so it's accessible everywhere
+        window.ckppDesignName = window.CKPP_DESIGN_TITLE || 'Untitled Design';
+        // Before root.innerHTML assignment, set the body background to #fafbfc
+        document.body.style.background = '#fafbfc';
         // --- Template UI ---
         var templatesDataDiv = document.getElementById('ckpp-templates-data');
         var templates = [];
@@ -16,7 +19,7 @@
         var templateUI = `
             <div style="display:flex; align-items:center; gap:16px; margin-bottom:18px;">
                 <label for='ckpp-design-name' style='font-size:16px;font-weight:bold;'>Design Name:</label>
-                <input id='ckpp-design-name' type='text' value='${designName.replace(/'/g, "&#39;")}' style='font-size:16px;padding:4px 10px;border-radius:6px;border:1px solid #ccc;width:220px;max-width:100%;margin-right:16px;' />
+                <input id='ckpp-design-name' type='text' value='${window.ckppDesignName.replace(/'/g, "&#39;")}' style='font-size:16px;padding:4px 10px;border-radius:6px;border:1px solid #ccc;width:220px;max-width:100%;margin-right:16px;' />
                 <button id="ckpp-save-template" style="background:#fec610; color:#222; border:none; border-radius:6px; padding:7px 18px; font-weight:bold; cursor:pointer;">Save as Template</button>
                 <label style="font-size:15px; margin-left:8px;">Load Template:
                     <select id="ckpp-load-template" style="margin-left:8px;">
@@ -24,6 +27,7 @@
                         ${templateOptions}
                     </select>
                 </label>
+                <button id="ckpp-reset-canvas" style="margin-left:16px; background:#eee; color:#222; border:none; border-radius:6px; padding:7px 18px; font-weight:bold; cursor:pointer;">Reset Canvas</button>
                 <span id="ckpp-template-msg" style="margin-left:16px; color:#008a00; font-size:14px;"></span>
             </div>
         `;
@@ -38,21 +42,19 @@
         `;
         // --- End Tools Sidebar ---
         root.innerHTML = templateUI + `
-            <div style="background:#fafbfc; padding:32px; border-radius:18px; box-shadow:0 2px 12px rgba(0,0,0,0.04); max-width:1100px; margin:32px auto;">
-              <div style="display:flex; gap:32px; align-items:flex-start;">
+            <div style=\"background:#fafbfc; padding:32px; border-radius:18px; box-shadow:0 2px 12px rgba(0,0,0,0.04); max-width:1100px; margin:32px auto;\">
+              <div style=\"display:flex; gap:32px; align-items:flex-start;\">
                 <!-- Tools Sidebar -->
-                <div style="width:160px; min-width:120px;">
-                  <div style="color:#fec610; font-weight:bold; font-size:18px; margin-bottom:18px;">Tools</div>
+                <div style=\"width:160px; min-width:120px;\">
+                  <div style=\"color:#fec610; font-weight:bold; font-size:18px; margin-bottom:18px;\">Tools</div>
                   ${toolsSidebar}
                 </div>
                 <!-- Center Canvas Area -->
-                <div style="flex:1; text-align:center;">
-                  <canvas id="ckpp-canvas" width="500" height="400" style="border:3px solid #fec610; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06);"></canvas>
-                  <div style="margin-top:1em;"></div>
-                  <div style="margin-top:1em;">
-                    <button id="ckpp-delete-selected" style="margin-right:8px;">Delete Selected</button>
-                    <button id="ckpp-reset-canvas">Reset Canvas</button>
+                <div style=\"flex:1; text-align:center; display:flex; flex-direction:column; align-items:center;\">
+                  <div style=\"width:100%; max-width:1000px; aspect-ratio:1/1; background:#f3f3f3; display:flex; align-items:center; justify-content:center; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); border:3px solid #fec610;\">
+                    <canvas id=\"ckpp-canvas\" width=\"1000\" height=\"1000\" style=\"width:100%; height:100%; max-width:1000px; max-height:1000px; background:transparent; display:block;\"></canvas>
                   </div>
+                  <div style=\"margin-top:1em;\"></div>
                 </div>
                 <!-- Properties/Layers Sidebar -->
                 <div style="width:220px; min-width:160px;">
@@ -64,6 +66,22 @@
               </div>
             </div>
         `;
+        // Attach reset canvas event handler immediately after HTML injection
+        var resetBtn = document.getElementById('ckpp-reset-canvas');
+        if (resetBtn) {
+            resetBtn.onclick = function() {
+                if (window.ckppFabricCanvas) {
+                    var fabricCanvas = window.ckppFabricCanvas;
+                    fabricCanvas.getObjects().slice().forEach(function(obj) {
+                        fabricCanvas.remove(obj);
+                    });
+                    fabricCanvas.discardActiveObject();
+                    fabricCanvas.requestRenderAll();
+                }
+            };
+        } else {
+            console.warn('CKPP: Reset Canvas button not found in DOM when trying to attach event handler.');
+        }
         // Wait for Fabric.js to be loaded
         function initAfterDOM() {
             var canvasEl = document.getElementById('ckpp-canvas');
@@ -83,6 +101,8 @@
         setTimeout(initAfterDOM, 0);
     }
     function setupMinimalDesigner() {
+        let lastSaveStatus = '';
+        let saveTimeout = null;
         var fabricCanvas = new fabric.Canvas('ckpp-canvas');
         window.ckppFabricCanvas = fabricCanvas;
         // Load initial config if present
@@ -181,6 +201,8 @@
                         fabricCanvas.setActiveObject(obj);
                         fabricCanvas.requestRenderAll();
                         updateLayersPanel();
+                        // Fire object:modified to trigger save
+                        fabricCanvas.fire('object:modified');
                     }
                     dragSrcIdx = null;
                 };
@@ -255,51 +277,18 @@
             }
             var name = sel.label || sel.placeholderType || sel.type || '';
             var html = '';
-            html += `<div style="margin-bottom:10px; font-size:15px;"><b>Type:</b> ${sel.placeholderType ? sel.placeholderType : sel.type}</div>`;
-            html += `<div style="margin-bottom:6px; font-size:15px;"><b>Name:</b></div>`;
-            html += `<input id="ckpp-prop-name" type="text" value="${name.replace(/"/g, '&quot;')}" style="width:100%; padding:6px 8px; border-radius:6px; border:1px solid #ccc; font-size:15px; margin-bottom:10px;" />`;
-            // Position
-            if (typeof sel.left === 'number' && typeof sel.top === 'number') {
-                html += `<div style="margin-bottom:6px; font-size:15px;"><b>Position:</b></div>`;
-                html += `<div style="display:flex; gap:8px; margin-bottom:10px;">
-                    <label style="flex:1;">X: <input id="ckpp-prop-x" type="number" value="${Math.round(sel.left)}" style="width:60px;" /></label>
-                    <label style="flex:1;">Y: <input id="ckpp-prop-y" type="number" value="${Math.round(sel.top)}" style="width:60px;" /></label>
-                </div>`;
-            }
-            // Size
-            if (typeof sel.width === 'number' && typeof sel.height === 'number') {
-                html += `<div style="margin-bottom:6px; font-size:15px;"><b>Size:</b></div>`;
-                html += `<div style="display:flex; gap:8px; margin-bottom:10px;">
-                    <label style="flex:1;">W: <input id="ckpp-prop-w" type="number" value="${Math.round(sel.width * sel.scaleX)}" style="width:60px;" /></label>
-                    <label style="flex:1;">H: <input id="ckpp-prop-h" type="number" value="${Math.round(sel.height * sel.scaleY)}" style="width:60px;" /></label>
-                </div>`;
-            }
-            // Rotation
-            if (typeof sel.angle === 'number') {
-                html += `<div style="margin-bottom:6px; font-size:15px;"><b>Rotation:</b></div>`;
-                html += `<input id="ckpp-prop-angle" type="number" value="${Math.round(sel.angle)}" style="width:60px; margin-bottom:10px;" />
-                <span style="font-size:14px; color:#888;">&deg;</span>`;
-            }
-            // Color (fill)
-            if (typeof sel.fill === 'string') {
-                html += `<div style="margin-bottom:6px; font-size:15px;"><b>Fill Color:</b></div>`;
-                html += `<input id="ckpp-prop-fill" type="color" value="${sel.fill.startsWith('#') ? sel.fill : '#000000'}" style="width:48px; height:32px; margin-bottom:10px;" />`;
-            }
-            // Color (stroke)
-            if (typeof sel.stroke === 'string') {
-                html += `<div style="margin-bottom:6px; font-size:15px;"><b>Stroke Color:</b></div>`;
-                html += `<input id="ckpp-prop-stroke" type="color" value="${sel.stroke.startsWith('#') ? sel.stroke : '#000000'}" style="width:48px; height:32px; margin-bottom:10px;" />`;
-            }
-            // Font controls for text objects
             var isText = sel.type === 'i-text' || sel.type === 'textbox' || sel.type === 'text';
+            var isShape = sel.type === 'rect' || sel.type === 'circle' || sel.type === 'triangle' || sel.type === 'polygon' || sel.type === 'ellipse';
             if (isText) {
-                // Get uploaded fonts from #ckpp-fonts-data
+                // Name
+                html += `<div style=\"margin-bottom:6px; font-size:15px;\"><b>Name:</b></div>`;
+                html += `<input id=\"ckpp-prop-name\" type=\"text\" value=\"${name.replace(/\"/g, '&quot;')}\" style=\"width:100%; padding:6px 8px; border-radius:6px; border:1px solid #ccc; font-size:15px; margin-bottom:10px;\" />`;
+                // Font Family
                 var uploadedFonts = [];
                 var fontsDataDiv = document.getElementById('ckpp-fonts-data');
                 if (fontsDataDiv) {
                     try { uploadedFonts = JSON.parse(fontsDataDiv.getAttribute('data-fonts') || '[]'); } catch(e) { uploadedFonts = []; }
                 }
-                // Web-safe font list
                 var webSafeFonts = [
                     { name: 'Arial', value: 'Arial, Helvetica, sans-serif' },
                     { name: 'Georgia', value: 'Georgia, serif' },
@@ -309,18 +298,60 @@
                     { name: 'Trebuchet MS', value: '"Trebuchet MS", Helvetica, sans-serif' },
                     { name: 'Verdana', value: 'Verdana, Geneva, sans-serif' }
                 ];
-                // Merge uploaded fonts (if any)
                 var allFonts = uploadedFonts.map(function(f) {
                     return { name: f.name, value: f.name, url: f.url, isCustom: true };
                 }).concat(webSafeFonts);
                 var currentFont = sel.fontFamily || 'Arial';
                 var fontOptions = allFonts.map(function(f) {
-                    return `<option value="${f.name}"${currentFont === f.name ? ' selected' : ''}>${f.name}${f.isCustom ? ' (Custom)' : ''}</option>`;
+                    return `<option value=\"${f.name}\"${currentFont === f.name ? ' selected' : ''}>${f.name}${f.isCustom ? ' (Custom)' : ''}</option>`;
                 }).join('');
-                html += `<div style="margin-bottom:6px; font-size:15px;"><b>Font Family:</b></div>`;
-                html += `<select id="ckpp-prop-font-family" style="width:100%; margin-bottom:10px;">${fontOptions}</select>`;
-                html += `<div style="margin-bottom:6px; font-size:15px;"><b>Font Size:</b></div>`;
-                html += `<input id="ckpp-prop-font-size" type="number" min="6" max="200" value="${sel.fontSize || 24}" style="width:70px; margin-bottom:10px;" /> px`;
+                html += `<div style=\"margin-bottom:6px; font-size:15px;\"><b>Font Family:</b></div>`;
+                html += `<select id=\"ckpp-prop-font-family\" style=\"width:100%; margin-bottom:10px;\">${fontOptions}</select>`;
+                // Colour & Font Size (side by side)
+                html += `<div style=\"display:flex; gap:12px; align-items:center; margin-bottom:10px;\">`;
+                // Colour (Pickr placeholder)
+                html += `<div id=\"ckpp-prop-fill-picker\"></div>`;
+                // Font Size
+                html += `<div style=\"font-size:15px; margin-left:8px;\"><b>Font Size:</b></div>`;
+                html += `<input id=\"ckpp-prop-font-size\" type=\"number\" min=\"6\" max=\"200\" value=\"${sel.fontSize || 24}\" style=\"width:70px;\" /> px`;
+                html += `</div>`;
+                // Rotation (new line)
+                html += `<div style=\"display:flex; gap:12px; align-items:center; margin-bottom:10px;\">`;
+                html += `<div style=\"font-size:15px;\"><b>Rotation:</b></div>`;
+                html += `<input id=\"ckpp-prop-angle\" type=\"number\" value=\"${Math.round(sel.angle)}\" style=\"width:60px; margin-right:4px;\" />`;
+                html += `<span style=\"font-size:14px; color:#888;\">&deg;</span>`;
+                html += `</div>`;
+                // Size (width/height)
+                if (typeof sel.width === 'number' && typeof sel.height === 'number') {
+                    html += `<div style=\"margin-bottom:6px; font-size:15px;\"><b>Size:</b></div>`;
+                    html += `<div style=\"display:flex; gap:8px; margin-bottom:10px;\">`;
+                    html += `<label style=\"flex:1;\">W: <input id=\"ckpp-prop-w\" type=\"number\" value=\"${Math.round(sel.width * sel.scaleX)}\" style=\"width:60px;\" /></label>`;
+                    html += `<label style=\"flex:1;\">H: <input id=\"ckpp-prop-h\" type=\"number\" value=\"${Math.round(sel.height * sel.scaleY)}\" style=\"width:60px;\" /></label>`;
+                    html += `</div>`;
+                }
+            } else if (isShape) {
+                // Shape properties UI
+                html += `<div style=\"margin-bottom:6px; font-size:15px;\"><b>Name:</b></div>`;
+                html += `<input id=\"ckpp-prop-name\" type=\"text\" value=\"${name.replace(/\"/g, '&quot;')}\" style=\"width:100%; padding:6px 8px; border-radius:6px; border:1px solid #ccc; font-size:15px; margin-bottom:10px;\" />`;
+                // Fill Color (Pickr)
+                html += `<div style=\"margin-bottom:10px;\"><b>Fill Color:</b><div id=\"ckpp-prop-fill-picker\"></div></div>`;
+                // Rotation
+                html += `<div style=\"display:flex; gap:12px; align-items:center; margin-bottom:10px;\">`;
+                html += `<div style=\"font-size:15px;\"><b>Rotation:</b></div>`;
+                html += `<input id=\"ckpp-prop-angle\" type=\"number\" value=\"${Math.round(sel.angle)}\" style=\"width:60px; margin-right:4px;\" />`;
+                html += `<span style=\"font-size:14px; color:#888;\">&deg;</span>`;
+                html += `</div>`;
+                // Size (width/height)
+                if (typeof sel.width === 'number' && typeof sel.height === 'number') {
+                    html += `<div style=\"margin-bottom:6px; font-size:15px;\"><b>Size:</b></div>`;
+                    html += `<div style=\"display:flex; gap:8px; margin-bottom:10px;\">`;
+                    html += `<label style=\"flex:1;\">W: <input id=\"ckpp-prop-w\" type=\"number\" value=\"${Math.round(sel.width * sel.scaleX)}\" style=\"width:60px;\" /></label>`;
+                    html += `<label style=\"flex:1;\">H: <input id=\"ckpp-prop-h\" type=\"number\" value=\"${Math.round(sel.height * sel.scaleY)}\" style=\"width:60px;\" /></label>`;
+                    html += `</div>`;
+                }
+            } else {
+                // Non-text, non-shape objects: keep current order or show minimal info
+                html += `<div style=\"color:#bbb; font-size:14px;\">No editable properties for this object.</div>`;
             }
             propDiv.innerHTML = html;
             // Name
@@ -330,19 +361,7 @@
                     sel.label = nameInput.value;
                     fabricCanvas.requestRenderAll();
                     updateLayersPanel();
-                };
-            }
-            // Position
-            var xInput = document.getElementById('ckpp-prop-x');
-            var yInput = document.getElementById('ckpp-prop-y');
-            if (xInput && yInput) {
-                xInput.oninput = function() {
-                    sel.left = parseFloat(xInput.value) || 0;
-                    fabricCanvas.requestRenderAll();
-                };
-                yInput.oninput = function() {
-                    sel.top = parseFloat(yInput.value) || 0;
-                    fabricCanvas.requestRenderAll();
+                    fabricCanvas.fire('object:modified', { target: sel });
                 };
             }
             // Size
@@ -353,35 +372,11 @@
                     var w = Math.max(1, parseFloat(wInput.value) || 1);
                     sel.scaleX = w / sel.width;
                     fabricCanvas.requestRenderAll();
+                    fabricCanvas.fire('object:modified', { target: sel });
                 };
                 hInput.oninput = function() {
                     var h = Math.max(1, parseFloat(hInput.value) || 1);
                     sel.scaleY = h / sel.height;
-                    fabricCanvas.requestRenderAll();
-                };
-            }
-            // Rotation
-            var angleInput = document.getElementById('ckpp-prop-angle');
-            if (angleInput) {
-                angleInput.oninput = function() {
-                    sel.angle = parseFloat(angleInput.value) || 0;
-                    fabricCanvas.requestRenderAll();
-                };
-            }
-            // Fill color
-            var fillInput = document.getElementById('ckpp-prop-fill');
-            if (fillInput) {
-                fillInput.oninput = function() {
-                    sel.set('fill', fillInput.value);
-                    fabricCanvas.requestRenderAll();
-                    fabricCanvas.fire('object:modified', { target: sel });
-                };
-            }
-            // Stroke color
-            var strokeInput = document.getElementById('ckpp-prop-stroke');
-            if (strokeInput) {
-                strokeInput.oninput = function() {
-                    sel.set('stroke', strokeInput.value);
                     fabricCanvas.requestRenderAll();
                     fabricCanvas.fire('object:modified', { target: sel });
                 };
@@ -444,6 +439,53 @@
                     if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
                 };
             }
+            // Fill color (Pickr integration)
+            var fillPickerDiv = document.getElementById('ckpp-prop-fill-picker');
+            if (fillPickerDiv && typeof Pickr !== 'undefined') {
+                // Destroy previous instance if any
+                if (window.ckppPickr) { window.ckppPickr.destroyAndRemove(); }
+                var initialColor = sel.fill && sel.fill.startsWith('#') ? sel.fill : (sel.fill ? rgbToHex(sel.fill) : '#000000');
+                window.ckppPickr = Pickr.create({
+                    el: fillPickerDiv,
+                    theme: 'classic',
+                    default: initialColor,
+                    components: {
+                        preview: true,
+                        opacity: false,
+                        hue: true,
+                        interaction: {
+                            hex: true,
+                            rgba: true,
+                            input: true,
+                            save: true
+                        }
+                    }
+                });
+                window.ckppPickr.on('save', function(color) {
+                    var hex = color.toHEXA().toString();
+                    sel.set('fill', hex);
+                    sel.dirty = true;
+                    fabricCanvas.renderAll();
+                    fabricCanvas.fire('object:modified', { target: sel });
+                    window.ckppPickr.hide();
+                });
+                window.ckppPickr.on('change', function(color) {
+                    var hex = color.toHEXA().toString();
+                    sel.set('fill', hex);
+                    sel.dirty = true;
+                    fabricCanvas.renderAll();
+                    fabricCanvas.fire('object:modified', { target: sel });
+                });
+            }
+            var angleInput = document.getElementById('ckpp-prop-angle');
+            if (angleInput) {
+                angleInput.oninput = function() {
+                    sel.set({ originX: 'center', originY: 'center' });
+                    sel.angle = parseFloat(angleInput.value) || 0;
+                    fabricCanvas.requestRenderAll();
+                    fabricCanvas.fire('object:modified', { target: sel });
+                };
+            }
         }
         fabricCanvas.on('selection:created', updatePropertiesPanel);
         fabricCanvas.on('selection:updated', updatePropertiesPanel);
@@ -461,7 +503,7 @@
             if (toolAddText) toolAddText.onclick = function() {
                 if (window.ckppFabricCanvas) {
                     var canvas = window.ckppFabricCanvas;
-                    var text = new fabric.IText('Text', { fontSize: 24 });
+                    var text = new fabric.IText('Text', { fontSize: 24, fill: '#222222' });
                     canvas.add(text);
                     canvas.centerObject(text);
                     text.setCoords();
@@ -524,7 +566,7 @@
             if (toolAddShape) toolAddShape.onclick = function() {
                 if (window.ckppFabricCanvas) {
                     var canvas = window.ckppFabricCanvas;
-                    var shape = new fabric.Rect({ width: 80, height: 50, fill: '#f00' });
+                    var shape = new fabric.Rect({ width: 80, height: 50, fill: '#ff0000' });
                     canvas.add(shape);
                     canvas.centerObject(shape);
                     shape.setCoords();
@@ -535,41 +577,45 @@
         }, 100);
         // --- End Tools Sidebar logic ---
         // Add Delete Selected and Reset Canvas button handlers
-        document.getElementById('ckpp-delete-selected').onclick = function() {
-            var sel = fabricCanvas.getActiveObject();
-            if (sel) {
-                fabricCanvas.remove(sel);
-                fabricCanvas.discardActiveObject();
-                fabricCanvas.requestRenderAll();
-            }
-        };
-        document.getElementById('ckpp-reset-canvas').onclick = function() {
-            fabricCanvas.getObjects().slice().forEach(function(obj) {
-                fabricCanvas.remove(obj);
-            });
-            fabricCanvas.discardActiveObject();
-            fabricCanvas.requestRenderAll();
-        };
-        // Add saving indicator below the canvas
-        var savingIndicator = document.createElement('div');
-        savingIndicator.id = 'ckpp-saving-indicator';
-        savingIndicator.style = 'margin-top:8px; color:#888; font-size:13px; min-height:18px;';
-        document.querySelector('#ckpp-canvas').parentNode.appendChild(savingIndicator);
-
+        var deleteBtn = document.getElementById('ckpp-delete-selected');
+        if (deleteBtn) {
+            deleteBtn.onclick = function() {
+                var sel = fabricCanvas.getActiveObject();
+                if (sel) {
+                    fabricCanvas.remove(sel);
+                    fabricCanvas.discardActiveObject();
+                    fabricCanvas.requestRenderAll();
+                }
+            };
+        }
+        // Add saving indicator below the canvas only if canvas exists
+        var canvasEl = document.getElementById('ckpp-canvas');
+        var savingIndicator = null;
+        if (canvasEl && canvasEl.parentNode) {
+            savingIndicator = document.createElement('div');
+            savingIndicator.id = 'ckpp-saving-indicator';
+            savingIndicator.style = 'margin-top:8px; color:#888; font-size:13px; min-height:18px;';
+            canvasEl.parentNode.appendChild(savingIndicator);
+        }
         // Debounced save function
-        let saveTimeout = null;
-        let lastSaveStatus = '';
         function showSaving(status) {
-            savingIndicator.textContent = status;
+            if (savingIndicator) {
+                savingIndicator.textContent = status;
+            }
         }
         function saveCanvasConfig() {
             if (!window.CKPPDesigner || !CKPPDesigner.ajaxUrl || !CKPPDesigner.nonce) {
                 console.error('CKPP: Missing CKPPDesigner, ajaxUrl, or nonce');
                 return;
             }
+            // Ensure all objects have fill/stroke explicitly set
+            fabricCanvas.getObjects().forEach(function(obj) {
+                if (typeof obj.fill === 'undefined') obj.set('fill', '#222');
+                if (typeof obj.stroke === 'undefined') obj.set('stroke', null);
+            });
             const config = JSON.stringify(fabricCanvas.toJSON());
             const designId = window.CKPPDesigner.designId || 0;
-            const title = designName || 'Untitled Design';
+            const title = window.ckppDesignName || 'Untitled Design';
             showSaving('Saving…');
             console.log('CKPP: Saving design', { designId, title, config, nonce: CKPPDesigner.nonce });
             $.post(CKPPDesigner.ajaxUrl, {
@@ -698,10 +744,14 @@
         var nameInput = document.getElementById('ckpp-design-name');
         if (nameInput) {
             nameInput.onchange = function() {
-                designName = nameInput.value;
+                window.ckppDesignName = nameInput.value;
                 if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
             };
         }
+        // Fire object:modified after moving to trigger save
+        fabricCanvas.on('object:moving', function(e) {
+            fabricCanvas.fire('object:modified', { target: e.target });
+        });
     }
     // For modal or in-page designer
     $(document).ready(function() {
@@ -731,4 +781,18 @@
     });
     // Replace previous renderMinimalDesigner with this version
     window.renderMinimalDesigner = renderMinimalDesigner;
+    // Helper to convert rgb/rgba to hex
+    function rgbToHex(rgb) {
+        var result = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/i.exec(rgb);
+        return result ? "#" + ((1 << 24) + (parseInt(result[1]) << 16) + (parseInt(result[2]) << 8) + parseInt(result[3])).toString(16).slice(1) : '#000000';
+    }
+    // Helper to convert hex to rgb string
+    function hexToRgbString(hex) {
+        var h = hex.replace('#', '');
+        if (h.length !== 6) return 'rgb(0,0,0)';
+        var r = parseInt(h.substring(0,2), 16);
+        var g = parseInt(h.substring(2,4), 16);
+        var b = parseInt(h.substring(4,6), 16);
+        return `rgb(${r},${g},${b})`;
+    }
 })(jQuery); 

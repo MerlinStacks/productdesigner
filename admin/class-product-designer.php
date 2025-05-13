@@ -118,8 +118,14 @@ class CKPP_Product_Designer {
 
     public function enqueue_assets( $hook ) {
         if ( isset($_GET['page']) && $_GET['page'] === 'ckpp_designs' ) {
-            wp_enqueue_script( 'ckpp-designer', plugins_url( '../assets/designer.js', __FILE__ ), [ 'jquery' ], '1.0', true );
+            // Register Pickr if not already registered
+            if (!wp_script_is('pickr', 'registered')) {
+                wp_register_script('pickr', 'https://cdn.jsdelivr.net/npm/@simonwep/pickr', [], null, true);
+                wp_register_style('pickr-classic', 'https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/classic.min.css', [], null);
+            }
+            wp_enqueue_script( 'ckpp-designer', plugins_url( '../assets/designer.js', __FILE__ ), [ 'jquery', 'pickr' ], '1.0', true );
             wp_enqueue_style( 'ckpp-designer', plugins_url( '../assets/designer.css', __FILE__ ), [], '1.0' );
+            wp_enqueue_style( 'pickr-classic' );
             wp_localize_script( 'ckpp-designer', 'CKPPDesigner', [
                 'ajaxUrl' => admin_url( 'admin-ajax.php' ),
                 'nonce'   => wp_create_nonce( 'ckpp_designer_nonce' ),

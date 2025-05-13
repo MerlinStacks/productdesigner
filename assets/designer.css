@@ -1,6 +1,52 @@
 /* assets/designer.css */
+html, body {
+  background: #fafbfc !important;
+  min-height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 #ckpp-designer-overlay { z-index: 10000; }
 #ckpp-designer-window { border-radius: 8px; box-shadow: 0 4px 32px rgba(0,0,0,0.2); }
 #ckpp-designer-close { background: none; border: none; font-size: 2em; line-height: 1; cursor: pointer; }
 #ckpp-canvas { background: #f8f8f8; }
-#ckpp-properties input[type="text"], #ckpp-properties input[type="number"] { width: 80px; margin-bottom: 0.5em; } 
+#ckpp-properties input[type="text"], #ckpp-properties input[type="number"] { width: 80px; margin-bottom: 0.5em; }
+
+/* Remove default WordPress admin .wrap margin and set full width */
+.wrap {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  box-sizing: border-box;
+}
+
+/* Remove previous global flex centering */
+/* .ckpp-admin > div, #ckpp-product-designer-root > div, #ckpp-product-designer-root {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+} */
+
+/* Center only the main designer area (canvas + sidebars) */
+#ckpp-product-designer-root > div {
+  display: flex !important;
+  flex-direction: row;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+}
+
+/* Optionally, ensure the top bar stays as a row */
+#ckpp-product-designer-root > .ckpp-designer-topbar,
+#ckpp-product-designer-root > .ckpp-designer-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  width: 100%;
+  margin-bottom: 24px;
+} 
