@@ -1,0 +1,6 @@
+/* assets/designer.css */
+#ckpp-designer-overlay { z-index: 10000; }
+#ckpp-designer-window { border-radius: 8px; box-shadow: 0 4px 32px rgba(0,0,0,0.2); }
+#ckpp-designer-close { background: none; border: none; font-size: 2em; line-height: 1; cursor: pointer; }
+#ckpp-canvas { background: #f8f8f8; }
+#ckpp-properties input[type="text"], #ckpp-properties input[type="number"] { width: 80px; margin-bottom: 0.5em; } 

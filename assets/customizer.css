@@ -1,0 +1,6 @@
+/* assets/customizer.css */
+#ckpp-customizer-overlay { z-index: 10000; }
+#ckpp-customizer-window { border-radius: 8px; box-shadow: 0 4px 32px rgba(0,0,0,0.2); }
+#ckpp-customizer-close { background: none; border: none; font-size: 2em; line-height: 1; cursor: pointer; }
+#ckpp-preview-canvas { background: #f8f8f8; }
+#ckpp-customizer-form input[type="text"] { width: 200px; margin-bottom: 0.5em; } 

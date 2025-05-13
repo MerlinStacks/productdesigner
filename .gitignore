@@ -1,0 +1,77 @@
+# .gitignore for CustomKings WordPress Plugin
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE/editor files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.code-workspace
+
+# Node/npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Composer
+vendor/
+composer.lock
+
+# Build artifacts
+/dist/
+/build/
+*.zip
+*.tar.gz
+
+# WordPress uploads (if any)
+wp-content/uploads/
+
+# Log files
+*.log
+
+# Environment/config
+.env
+.env.*
+
+# PHPStorm
+*.iml
+
+# Mac system files
+.AppleDouble
+.LSOverride
+Icon?
+
+# Windows system files
+Desktop.ini
+$RECYCLE.BIN/
+
+# Exclude backup files
+*~
+*.bak
+*.tmp
+
+# Exclude test coverage
+coverage/
+
+# Exclude custom local config
+local-config.php
+
+# Exclude cursor/AI artifacts (if not needed in repo)
+.cursor/
+
+# Allow plugin source, assets, and documentation
+!CustomKings.php
+!readme.md
+!readme.txt
+!changelog.md
+!project.md
+!assets/
+!admin/
+!includes/
+!languages/
+!templates/
+!tests/ 

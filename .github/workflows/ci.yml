@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping --silent" --health-interval=10s --health-timeout=5s --health-retries=3
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install Node.js dependencies
+        run: |
+          npm install jest
+      - name: Run Jest tests
+        run: npx jest tests/*.test.js
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.0'
+          extensions: mbstring, mysqli
+          ini-values: post_max_size=256M, upload_max_filesize=256M, memory_limit=512M
+      - name: Install Composer dependencies
+        run: |
+          if [ -f composer.json ]; then composer install; fi
+      - name: Set up WordPress for PHPUnit
+        run: |
+          git clone --depth=1 --branch=6.2 https://github.com/WordPress/WordPress.git wordpress
+          git clone --depth=1 https://github.com/WordPress/wordpress-develop.git
+          cp wordpress-develop/wp-tests-config-sample.php wordpress-develop/wp-tests-config.php
+          sed -i "s/youremptytestdbnamehere/wordpress/" wordpress-develop/wp-tests-config.php
+          sed -i "s/yourusernamehere/root/" wordpress-develop/wp-tests-config.php
+          sed -i "s/yourpasswordhere/root/" wordpress-develop/wp-tests-config.php
+          sed -i "s|localhost|127.0.0.1|" wordpress-develop/wp-tests-config.php
+      - name: Run PHPUnit tests
+        env:
+          WP_TESTS_DIR: ${{ github.workspace }}/wordpress-develop/tests/phpunit
+          WP_CORE_DIR: ${{ github.workspace }}/wordpress
+        run: |
+          if [ -f vendor/bin/phpunit ]; then vendor/bin/phpunit; else phpunit; fi 

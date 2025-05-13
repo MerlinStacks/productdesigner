@@ -1,0 +1,131 @@
+# Cursor Rules for CustomKings Plugin
+
+# General
+- Write clear, descriptive commit messages.
+- Use meaningful variable, function, and class names.
+- Keep functions small and focused on a single responsibility.
+- Remove unused code and imports.
+- Write comments for complex logic, but avoid obvious comments.
+- Prefer constants for magic numbers and repeated strings.
+- Do not create files over 500 lines; split large files into smaller, manageable modules.
+
+# PHP/WordPress Best Practices
+- Follow WordPress coding standards (https://developer.wordpress.org/coding-standards/wordpress-coding-standards/php/).
+- Use nonces and capability checks for all actions/filters that affect data.
+- Escape output using appropriate WordPress functions (e.g., esc_html, esc_attr).
+- Sanitize all input data.
+- Use prepared statements for database queries.
+
+# File & Directory Structure
+- Organize code by feature or functionality.
+- Place reusable code in includes or inc directories.
+- Keep template files in a templates directory.
+
+# Version Control
+- Do not commit sensitive information (API keys, passwords).
+- Do not commit build artifacts or dependencies (e.g., node_modules, vendor).
+- Use .gitignore to exclude unnecessary files.
+
+# Documentation
+- Document all public functions and classes with PHPDoc.
+- Update documentation when code changes.
+
+# Testing
+- Test all code before committing.
+- Prefer automated tests where possible.
+
+# Collaboration
+- Communicate major changes with the team.
+- Review pull requests for code quality and adherence to these rules.
+
+# Cursor AI Usage
+- Always review AI-generated code before committing.
+- Use AI to assist, not replace, human judgment.
+- Prompt AI with clear, specific instructions.
+- Not every AI suggestion or command requires immediate approval; team members may be AFK or unavailable at times. Please allow for reasonable response times.
+
+# TypeScript, Node.js, Next.js, React, Shadcn UI, Radix UI, Tailwind Best Practices
+
+- Write concise, technical TypeScript code with accurate examples.
+- Use functional and declarative programming patterns; avoid classes.
+- Prefer iteration and modularization over code duplication.
+- Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError).
+- Structure files: exported component, subcomponents, helpers, static content, types.
+
+# Naming Conventions
+- Use lowercase with dashes for directories (e.g., components/auth-wizard).
+- Favor named exports for components.
+
+# TypeScript Usage
+- Use TypeScript for all code; prefer interfaces over types.
+- Avoid enums; use maps instead.
+- Use functional components with TypeScript interfaces.
+
+# Syntax and Formatting
+- Use the "function" keyword for pure functions.
+- Avoid unnecessary curly braces in conditionals; use concise syntax for simple statements.
+- Use declarative JSX.
+
+# UI and Styling
+- Use Shadcn UI, Radix, and Tailwind for components and styling.
+- Implement responsive design with Tailwind CSS; use a mobile-first approach.
+
+# Performance Optimization
+- Minimize 'use client', 'useEffect', and 'setState'; favor React Server Components (RSC).
+- Wrap client components in Suspense with fallback.
+- Use dynamic loading for non-critical components.
+- Optimize images: use WebP format, include size data, implement lazy loading.
+
+# Key Conventions
+- Use 'nuqs' for URL search parameter state management.
+- Optimize Web Vitals (LCP, CLS, FID).
+- Limit 'use client':
+  - Favor server components and Next.js SSR.
+  - Use only for Web API access in small components.
+  - Avoid for data fetching or state management.
+
+- Follow Next.js docs for Data Fetching, Rendering, and Routing.
+
+# CustomKings Plugin-Specific Rules
+
+## Accessibility & Internationalization
+- All user-facing interfaces (admin and frontend) must meet WCAG 2.1 AA accessibility standards (keyboard navigation, ARIA attributes, color contrast, etc.).
+- All user-facing strings must be translatable using WordPress internationalization functions. Generate a .pot file for translators.
+
+## Performance
+- Prioritize performance for all frontend interfaces, especially the customer customizer and live preview. Optimize asset loading, minimize bundle size, and use lazy loading for images/assets.
+- Optimize database queries and use caching where appropriate.
+- Use lightweight, performant JS libraries for the frontend unless complexity justifies a larger framework.
+
+## Code Modularity & Structure
+- Structure backend and frontend code into logical, modular components (e.g., separate classes/files for admin, frontend, database, API, etc.).
+- Favor reusable functions, libraries, and components.
+- Use custom database tables for complex or performance-critical data (e.g., assets, templates).
+
+## Security
+- Secure all REST API endpoints and AJAX actions with nonces and capability checks.
+- Sanitize and validate all input data, including file uploads.
+- Escape all output using appropriate WordPress functions.
+
+## Use of Existing Systems & Libraries
+- Prefer WordPress and WooCommerce hooks, filters, and APIs over custom implementations.
+- Use well-maintained, secure, and performant third-party libraries for advanced features (e.g., Fabric.js/Konva.js for canvas, TCPDF/FPDF for PDF generation).
+
+## Documentation
+- Document all public functions, classes, and complex logic with clear PHPDoc or JSdoc comments.
+- Include author attribution in the plugin header and Readme.md as specified.
+
+## Error Handling & User Feedback
+- Implement clear error handling and user feedback for all user actions, especially for file uploads, API calls, and personalization steps.
+
+## Admin UI
+- All admin interfaces must be accessible, clean, and follow WordPress UI/UX standards.
+- Use ARIA roles and ensure keyboard navigation for all custom controls.
+
+## Data Storage
+- Store product personalization configurations and customer data as JSON in post meta and order item meta, as specified.
+
+## Print-Ready File Generation
+- Generate print-ready files (preferably vector PDF) using the admin's print settings and customer data, ensuring correct embedding of raster images.
+
+# End of .cursorrules 
