@@ -83,16 +83,6 @@
                 });
                 html += '</select><br/>';
             }
-            if (obj.placeholderType === 'swatch' && obj.swatches) {
-                html += '<fieldset><legend>' + (obj.label || 'Color Swatch') + '</legend>';
-                obj.swatches.forEach(function(color, cidx) {
-                    html += '<label style="margin-right:1em;">';
-                    html += '<input type="radio" name="swatch_' + idx + '" value="' + color + '" aria-label="' + color + '" />';
-                    html += '<span style="display:inline-block;width:24px;height:24px;background:' + color + ';border:1px solid #ccc;margin-left:0.5em;"></span>';
-                    html += '</label>';
-                });
-                html += '</fieldset>';
-            }
             if (obj.placeholderType === 'image') {
                 html += '<label for="ckpp-input-image-' + idx + '">' + (obj.label || 'Image Upload') + '</label> ';
                 html += '<input type="file" id="ckpp-input-image-' + idx + '" name="image_' + idx + '" accept="image/*" /><br/>';
@@ -158,11 +148,6 @@
                         fabricCanvas.item(idx).set('fill', '#e0e0e0');
                         fabricCanvas.item(idx).set('text', val);
                     }
-                    if (obj.placeholderType === 'swatch') {
-                        const radios = form.querySelectorAll('input[name="swatch_' + idx + '"]:checked');
-                        const val = radios.length ? radios[0].value : (obj.swatches ? obj.swatches[0] : '');
-                        fabricCanvas.item(idx).set('fill', val);
-                    }
                     if (obj.placeholderType === 'image') {
                         const previewImg = document.getElementById('ckpp-image-preview-' + idx);
                         if (previewImg && previewImg.src && previewImg.style.display !== 'none') {
@@ -192,10 +177,6 @@
             }
             if (obj.placeholderType === 'dropdown') {
                 data['dropdown_' + idx] = form['dropdown_' + idx] ? form['dropdown_' + idx].value : '';
-            }
-            if (obj.placeholderType === 'swatch') {
-                const radios = form.querySelectorAll('input[name="swatch_' + idx + '"]:checked');
-                data['swatch_' + idx] = radios.length ? radios[0].value : '';
             }
             if (obj.placeholderType === 'image') {
                 const fileInput = form['image_' + idx];

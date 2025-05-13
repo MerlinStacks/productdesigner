@@ -90,7 +90,8 @@ class CKPP_Product_Designer {
                 echo '<div id="ckpp-fonts-data" data-fonts="' . esc_attr(json_encode($font_list)) . '" style="display:none;"></div>';
             }
             echo '<div id="ckpp-product-designer-root"></div>';
-            echo '<script>window.CKPP_DESIGN_ID = ' . $design_id . ';</script>';
+            $design_title = get_the_title($design_id);
+            echo '<script>window.CKPP_DESIGN_ID = ' . $design_id . '; window.CKPP_DESIGN_TITLE = ' . json_encode($design_title) . ';</script>';
         } else {
             // List and create designs
             echo '<a href="' . esc_url( admin_url( 'admin.php?action=ckpp_create_design' ) ) . '" class="button button-primary">' . esc_html__( 'Create New Design', 'customkings' ) . '</a>';
@@ -255,7 +256,8 @@ class CKPP_Product_Designer {
         // Search/filter input
         echo '<input type="text" id="ckpp-image-search" placeholder="Search images..." style="margin-bottom:1em; width:300px; font-size:15px; padding:4px 8px;" />';
         // Bulk delete form
-        echo '<form method="post" id="ckpp-bulk-delete-form" onsubmit="return confirm(\'Delete selected images?\');">';
+        echo '<form method="post" action="' . esc_url( admin_url('admin-post.php') ) . '" id="ckpp-bulk-delete-form" onsubmit="return confirm(\'Delete selected images?\');">';
+        echo '<input type="hidden" name="action" value="ckpp_bulk_delete_images" />';
         wp_nonce_field('ckpp_bulk_delete_images', 'ckpp_bulk_delete_nonce');
         echo '<button type="submit" name="ckpp_bulk_delete" class="button" style="margin-bottom:1em;">Bulk Delete</button>';
         echo '<table class="widefat fixed striped" id="ckpp-images-table" style="max-width:900px;">';
@@ -266,7 +268,7 @@ class CKPP_Product_Designer {
             $date = date( 'Y-m-d H:i', filemtime( $file ) );
             $size = filesize($file);
             $size_str = $size > 1048576 ? round($size/1048576,2).' MB' : round($size/1024,1).' KB';
-            $delete_url = wp_nonce_url( admin_url( 'admin.php?page=ckpp_images&ckpp_delete_image=' . urlencode($img) ), 'ckpp_delete_image_' . $img );
+            $delete_url = wp_nonce_url( admin_url( 'admin.php?action=ckpp_delete_image&ckpp_delete_image=' . urlencode($img) ), 'ckpp_delete_image_' . $img );
             echo '<tr>';
             echo '<td><input type="checkbox" name="ckpp_bulk_images[]" value="' . esc_attr($img) . '" /></td>';
             echo '<td><img src="' . esc_url( $url ) . '" style="max-width:80px;max-height:80px;" alt="" /></td>';

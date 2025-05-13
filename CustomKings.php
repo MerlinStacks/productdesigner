@@ -24,12 +24,10 @@ class CustomKings_Product_Personalizer {
         if ( is_admin() ) {
             require_once plugin_dir_path( __FILE__ ) . 'admin/class-admin-ui.php';
             require_once plugin_dir_path( __FILE__ ) . 'admin/class-fonts.php';
-            require_once plugin_dir_path( __FILE__ ) . 'admin/class-colors.php';
             require_once plugin_dir_path( __FILE__ ) . 'admin/class-clipart.php';
             require_once plugin_dir_path( __FILE__ ) . 'admin/class-product-designer.php';
             new CKPP_Admin_UI();
             new CKPP_Fonts();
-            new CKPP_Colors();
             new CKPP_Clipart();
             new CKPP_Product_Designer();
         }

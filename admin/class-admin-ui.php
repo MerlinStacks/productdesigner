@@ -49,7 +49,6 @@ class CKPP_Admin_UI {
         $tabs = [
             'settings' => __( 'Modes & Global Settings', 'customkings' ),
             'fonts'    => __( 'Fonts', 'customkings' ),
-            'colors'   => __( 'Color Swatches', 'customkings' ),
             'clipart'  => __( 'Clipart', 'customkings' ),
         ];
         $active_tab = isset( $_GET['tab'] ) && array_key_exists( $_GET['tab'], $tabs ) ? $_GET['tab'] : 'settings';
@@ -98,9 +97,6 @@ class CKPP_Admin_UI {
         switch ( $tab ) {
             case 'fonts':
                 $this->render_fonts_tab();
-                break;
-            case 'colors':
-                $this->render_colors_tab();
                 break;
             case 'clipart':
                 $this->render_clipart_tab();
@@ -190,103 +186,6 @@ class CKPP_Admin_UI {
             </tbody>
         </table>
         <?php
-    }
-
-    private function render_colors_tab() {
-        // Notices
-        if ( isset( $_GET['ckpp_palette_success'] ) && $_GET['ckpp_palette_success'] === 'added' ) {
-            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Palette added.', 'customkings' ) . '</p></div>';
-        } elseif ( isset( $_GET['ckpp_palette_success'] ) && $_GET['ckpp_palette_success'] === 'deleted' ) {
-            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Palette deleted.', 'customkings' ) . '</p></div>';
-        } elseif ( isset( $_GET['ckpp_palette_error'] ) ) {
-            $error = sanitize_text_field( $_GET['ckpp_palette_error'] );
-            $msg = $error === 'no_name' ? __( 'Palette name required.', 'customkings' ) : __( 'An error occurred.', 'customkings' );
-            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $msg ) . '</p></div>';
-        }
-        if ( isset( $_GET['ckpp_color_success'] ) && $_GET['ckpp_color_success'] === 'added' ) {
-            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Color added.', 'customkings' ) . '</p></div>';
-        } elseif ( isset( $_GET['ckpp_color_success'] ) && $_GET['ckpp_color_success'] === 'deleted' ) {
-            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Color deleted.', 'customkings' ) . '</p></div>';
-        } elseif ( isset( $_GET['ckpp_color_error'] ) ) {
-            $error = sanitize_text_field( $_GET['ckpp_color_error'] );
-            $msg = $error === 'invalid' ? __( 'Invalid color data.', 'customkings' ) : __( 'An error occurred.', 'customkings' );
-            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $msg ) . '</p></div>';
-        }
-        ?>
-        <h2><?php esc_html_e( 'Color Swatches', 'customkings' ); ?></h2>
-        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-            <?php wp_nonce_field( 'ckpp_add_palette' ); ?>
-            <input type="hidden" name="action" value="ckpp_add_palette" />
-            <table class="form-table" role="presentation">
-                <tr>
-                    <th scope="row"><label for="palette_name"><?php esc_html_e( 'New Palette Name', 'customkings' ); ?></label></th>
-                    <td><input type="text" name="palette_name" id="palette_name" required class="regular-text" /></td>
-                </tr>
-            </table>
-            <?php submit_button( __( 'Add Palette', 'customkings' ) ); ?>
-        </form>
-        <hr />
-        <h3><?php esc_html_e( 'Palettes', 'customkings' ); ?></h3>
-        <?php
-        if ( ! class_exists( 'CKPP_Colors' ) ) return;
-        $palettes = CKPP_Colors::get_palettes();
-        if ( $palettes ) :
-            foreach ( $palettes as $palette ) :
-                $palette_id = intval( $palette->id );
-                $colors = CKPP_Colors::get_colors( $palette_id );
-                ?>
-                <div style="margin-bottom:2em; border:1px solid #ccd0d4; padding:1em; background:#fafbfc;">
-                    <h4 style="margin-top:0; display:inline-block;">🎨 <?php echo esc_html( $palette->name ); ?></h4>
-                    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline; margin-left:1em;">
-                        <?php wp_nonce_field( 'ckpp_delete_palette' ); ?>
-                        <input type="hidden" name="action" value="ckpp_delete_palette" />
-                        <input type="hidden" name="palette_id" value="<?php echo $palette_id; ?>" />
-                        <button type="submit" class="button button-small delete" onclick="return confirm('<?php echo esc_js( __( 'Delete this palette and all its colors?', 'customkings' ) ); ?>');"><?php esc_html_e( 'Delete Palette', 'customkings' ); ?></button>
-                    </form>
-                    <div style="margin-top:1em;">
-                        <?php if ( $colors ) : ?>
-                            <table style="width:auto;">
-                                <thead><tr><th><?php esc_html_e( 'Color', 'customkings' ); ?></th><th><?php esc_html_e( 'Name', 'customkings' ); ?></th><th><?php esc_html_e( 'Hex', 'customkings' ); ?></th><th><?php esc_html_e( 'Actions', 'customkings' ); ?></th></tr></thead>
-                                <tbody>
-                                <?php foreach ( $colors as $color ) : ?>
-                                    <tr>
-                                        <td><span style="display:inline-block;width:32px;height:32px;background:<?php echo esc_attr( $color->hex_code ); ?>;border:1px solid #ccc;"></span></td>
-                                        <td><?php echo esc_html( $color->name ); ?></td>
-                                        <td><?php echo esc_html( $color->hex_code ); ?></td>
-                                        <td>
-                                            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
-                                                <?php wp_nonce_field( 'ckpp_delete_color' ); ?>
-                                                <input type="hidden" name="action" value="ckpp_delete_color" />
-                                                <input type="hidden" name="color_id" value="<?php echo intval( $color->id ); ?>" />
-                                                <button type="submit" class="button button-small delete" onclick="return confirm('<?php echo esc_js( __( 'Delete this color?', 'customkings' ) ); ?>');"><?php esc_html_e( 'Delete', 'customkings' ); ?></button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        <?php else : ?>
-                            <p><?php esc_html_e( 'No colors in this palette yet.', 'customkings' ); ?></p>
-                        <?php endif; ?>
-                    </div>
-                    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:1em;">
-                        <?php wp_nonce_field( 'ckpp_add_color' ); ?>
-                        <input type="hidden" name="action" value="ckpp_add_color" />
-                        <input type="hidden" name="palette_id" value="<?php echo $palette_id; ?>" />
-                        <table style="width:auto;">
-                            <tr>
-                                <td><input type="text" name="color_name" placeholder="<?php esc_attr_e( 'Color Name', 'customkings' ); ?>" required /></td>
-                                <td><input type="text" name="color_hex" placeholder="#RRGGBB" pattern="#?[0-9A-Fa-f]{6}" required /></td>
-                                <td><button type="submit" class="button button-small"><?php esc_html_e( 'Add Color', 'customkings' ); ?></button></td>
-                            </tr>
-                        </table>
-                    </form>
-                </div>
-                <?php
-            endforeach;
-        else :
-            echo '<p>' . esc_html__( 'No palettes created yet.', 'customkings' ) . '</p>';
-        endif;
     }
 
     private function render_clipart_tab() {

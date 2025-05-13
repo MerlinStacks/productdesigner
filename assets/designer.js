@@ -3,6 +3,7 @@
     function renderMinimalDesigner() {
         var root = document.getElementById('ckpp-product-designer-root') || document.getElementById('ckpp-designer-modal');
         if (!root) return;
+        var designName = window.CKPP_DESIGN_TITLE || 'Untitled Design';
         // --- Template UI ---
         var templatesDataDiv = document.getElementById('ckpp-templates-data');
         var templates = [];
@@ -14,8 +15,10 @@
         }).join('');
         var templateUI = `
             <div style="display:flex; align-items:center; gap:16px; margin-bottom:18px;">
+                <label for='ckpp-design-name' style='font-size:16px;font-weight:bold;'>Design Name:</label>
+                <input id='ckpp-design-name' type='text' value='${designName.replace(/'/g, "&#39;")}' style='font-size:16px;padding:4px 10px;border-radius:6px;border:1px solid #ccc;width:220px;max-width:100%;margin-right:16px;' />
                 <button id="ckpp-save-template" style="background:#fec610; color:#222; border:none; border-radius:6px; padding:7px 18px; font-weight:bold; cursor:pointer;">Save as Template</button>
-                <label style="font-size:15px;">Load Template:
+                <label style="font-size:15px; margin-left:8px;">Load Template:
                     <select id="ckpp-load-template" style="margin-left:8px;">
                         <option value="">-- Select Template --</option>
                         ${templateOptions}
@@ -371,6 +374,7 @@
                 fillInput.oninput = function() {
                     sel.set('fill', fillInput.value);
                     fabricCanvas.requestRenderAll();
+                    fabricCanvas.fire('object:modified', { target: sel });
                 };
             }
             // Stroke color
@@ -379,6 +383,7 @@
                 strokeInput.oninput = function() {
                     sel.set('stroke', strokeInput.value);
                     fabricCanvas.requestRenderAll();
+                    fabricCanvas.fire('object:modified', { target: sel });
                 };
             }
             // Font controls
@@ -563,9 +568,8 @@
                 return;
             }
             const config = JSON.stringify(fabricCanvas.toJSON());
-            console.log('CKPP: saveCanvasConfig called. Config:', config);
             const designId = window.CKPPDesigner.designId || 0;
-            const title = 'Untitled Design';
+            const title = designName || 'Untitled Design';
             showSaving('Saving…');
             console.log('CKPP: Saving design', { designId, title, config, nonce: CKPPDesigner.nonce });
             $.post(CKPPDesigner.ajaxUrl, {
@@ -690,6 +694,13 @@
                 }
             });
             window.ckppDeleteKeyHandlerAdded = true;
+        }
+        var nameInput = document.getElementById('ckpp-design-name');
+        if (nameInput) {
+            nameInput.onchange = function() {
+                designName = nameInput.value;
+                if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
+            };
         }
     }
     // For modal or in-page designer
