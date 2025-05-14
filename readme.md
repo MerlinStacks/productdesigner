@@ -9,6 +9,11 @@ https://customkings.com.au/
 ## Description
 This plugin enables e-commerce store customers to personalize specific products by filling in admin-defined placeholders before adding them to the cart. It features a visual admin designer, real-time preview, and generates print-ready files for order fulfillment.
 
+**New in this version:**
+- Image placeholders: Admins can define image upload areas. Customers can upload images that fill and cover the defined area, are always centered, and cannot be moved or resized. Uploading a new image replaces the previous one.
+- All input fields above Add to Cart now use the backend label and have consistent, sanitized names/IDs.
+- Numerous bug fixes and UX improvements for live preview and input validation.
+
 ## Installation
 1. Upload the plugin files to the `/wp-content/plugins/customkings-product-personalizer` directory, or install the plugin through the WordPress plugins screen directly.
 2. Activate the plugin through the 'Plugins' screen in WordPress.
@@ -24,8 +29,8 @@ This plugin enables e-commerce store customers to personalize specific products 
 
 ### Customer Workflow
 - On the product page, click the **Personalize** button to open the customizer.
-- Fill in text, select dropdown options, choose color swatches, and upload images as defined by the admin.
-- See a live preview of your personalized product.
+- Fill in text, select dropdown options, choose color swatches, upload images (for image placeholders) as defined by the admin.
+- See a live preview of your personalized product. Uploaded images will fill the defined area and cannot be moved or resized.
 - Click **Apply** to attach your personalization to the product before adding to cart.
 
 ### Order Fulfillment

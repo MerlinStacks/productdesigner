@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Layers panel now supports drag-and-drop reordering. The top of the list is the topmost (frontmost) object on the canvas.
 - Keyboard accessibility: You can now delete the selected object using the Delete or Backspace key, in line with accessibility standards.
 - New objects (text, image, shape) are always robustly centered on the canvas using Fabric.js's `centerObject` method, regardless of zoom or pan.
+- Image placeholders now fully supported: users can upload images that fill and cover the defined area, are always centered, and cannot be moved or resized.
+- Uploading a new image replaces the previous one for that placeholder.
+- All input fields above Add to Cart now use the backend label and have consistent, sanitized names/IDs.
+
+### Fixed
+- Numerous bug fixes and UX improvements for live preview and input validation.
 
 ## [1.0.0] - 2024-06-07
 
@@ -59,9 +65,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - None
 
 ### Removed
-- None
-
-### Fixed
 - None
 
 ### Security

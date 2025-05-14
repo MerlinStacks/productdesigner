@@ -36,7 +36,9 @@
         var toolsSidebar = `
             <div style="display:flex; flex-direction:column; gap:16px;">
                 <button id="ckpp-tool-add-text" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:none;background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);cursor:pointer;font-size:15px;" title="Add Text"><span style="font-size:18px;">🅣</span> Text</button>
+                <button id="ckpp-tool-add-textbox" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:none;background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);cursor:pointer;font-size:15px;" title="Add Text Box"><span style="font-size:18px;">🅣🅑</span> Text Box</button>
                 <button id="ckpp-tool-add-image" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:none;background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);cursor:pointer;font-size:15px;" title="Add Image"><span style="font-size:18px;">🖼️</span> Image</button>
+                <button id="ckpp-tool-add-image-placeholder" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:none;background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);cursor:pointer;font-size:15px;" title="Add Image Placeholder"><span style="font-size:18px;">⬜</span> Image Placeholder</button>
                 <button id="ckpp-tool-add-shape" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:none;background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);cursor:pointer;font-size:15px;" title="Add Shape"><span style="font-size:18px;">⬛</span> Shape</button>
             </div>
         `;
@@ -307,6 +309,20 @@
                 }).join('');
                 html += `<div style=\"margin-bottom:6px; font-size:15px;\"><b>Font Family:</b></div>`;
                 html += `<select id=\"ckpp-prop-font-family\" style=\"width:100%; margin-bottom:10px;\">${fontOptions}</select>`;
+                // Alignment
+                var alignments = [
+                    { key: 'left', icon: '<svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="5" width="16" height="2" rx="1" fill="#444"/><rect x="2" y="9" width="10" height="2" rx="1" fill="#444"/><rect x="2" y="13" width="14" height="2" rx="1" fill="#444"/></svg>' },
+                    { key: 'center', icon: '<svg width="20" height="20" viewBox="0 0 20 20"><rect x="4" y="5" width="12" height="2" rx="1" fill="#444"/><rect x="2" y="9" width="16" height="2" rx="1" fill="#444"/><rect x="5" y="13" width="10" height="2" rx="1" fill="#444"/></svg>' },
+                    { key: 'right', icon: '<svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="5" width="16" height="2" rx="1" fill="#444"/><rect x="8" y="9" width="10" height="2" rx="1" fill="#444"/><rect x="4" y="13" width="14" height="2" rx="1" fill="#444"/></svg>' },
+                    { key: 'justify', icon: '<svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="5" width="16" height="2" rx="1" fill="#444"/><rect x="2" y="9" width="16" height="2" rx="1" fill="#444"/><rect x="2" y="13" width="16" height="2" rx="1" fill="#444"/></svg>' }
+                ];
+                var currentAlign = sel.textAlign || 'left';
+                html += `<div style=\"margin-bottom:6px; font-size:15px;\"><b>Alignment:</b></div>`;
+                html += `<div id=\"ckpp-prop-text-align-group\" style=\"display:flex;gap:8px;margin-bottom:10px;\">`;
+                alignments.forEach(function(a) {
+                    html += `<button type=\"button\" class=\"ckpp-align-btn${currentAlign === a.key ? ' ckpp-align-btn-active' : ''}\" data-align=\"${a.key}\" style=\"background:${currentAlign === a.key ? '#fec610' : '#f3f3f3'};border:1px solid #ccc;border-radius:5px;padding:4px 6px;cursor:pointer;\" title=\"${a.key.charAt(0).toUpperCase() + a.key.slice(1)}\">${a.icon}</button>`;
+                });
+                html += `</div>`;
                 // Colour & Font Size (side by side)
                 html += `<div style=\"display:flex; gap:12px; align-items:center; margin-bottom:10px;\">`;
                 // Colour (Pickr placeholder)
@@ -352,6 +368,10 @@
             } else {
                 // Non-text, non-shape objects: keep current order or show minimal info
                 html += `<div style=\"color:#bbb; font-size:14px;\">No editable properties for this object.</div>`;
+            }
+            // Image Placeholder properties
+            if (sel.placeholderType === 'image') {
+                html += '<div style="margin-bottom:1em;"><label style="font-weight:bold;">Label<br/><input type="text" id="ckpp-prop-image-label" value="' + (sel.label || 'Image Placeholder') + '" style="width:100%;margin-top:4px;" /></label></div>';
             }
             propDiv.innerHTML = html;
             // Name
@@ -486,6 +506,37 @@
                     fabricCanvas.fire('object:modified', { target: sel });
                 };
             }
+            // Alignment
+            var alignGroup = document.getElementById('ckpp-prop-text-align-group');
+            if (alignGroup) {
+                Array.from(alignGroup.querySelectorAll('button[data-align]')).forEach(function(btn) {
+                    btn.onclick = function() {
+                        var align = btn.getAttribute('data-align');
+                        sel.set('textAlign', align);
+                        // Update button styles
+                        Array.from(alignGroup.querySelectorAll('button[data-align]')).forEach(function(b) {
+                            b.classList.remove('ckpp-align-btn-active');
+                            b.style.background = '#f3f3f3';
+                        });
+                        btn.classList.add('ckpp-align-btn-active');
+                        btn.style.background = '#fec610';
+                        fabricCanvas.requestRenderAll();
+                        fabricCanvas.fire('object:modified', { target: sel });
+                        if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
+                    };
+                });
+            }
+            // Image Placeholder label change
+            if (sel.placeholderType === 'image') {
+                var labelInput = document.getElementById('ckpp-prop-image-label');
+                if (labelInput) {
+                    labelInput.oninput = function() {
+                        sel.label = labelInput.value;
+                        fabricCanvas.requestRenderAll();
+                        fabricCanvas.fire('object:modified', { target: sel });
+                    };
+                }
+            }
         }
         fabricCanvas.on('selection:created', updatePropertiesPanel);
         fabricCanvas.on('selection:updated', updatePropertiesPanel);
@@ -498,7 +549,9 @@
         // --- Tools Sidebar logic ---
         setTimeout(function() {
             var toolAddText = document.getElementById('ckpp-tool-add-text');
+            var toolAddTextbox = document.getElementById('ckpp-tool-add-textbox');
             var toolAddImage = document.getElementById('ckpp-tool-add-image');
+            var toolAddImagePlaceholder = document.getElementById('ckpp-tool-add-image-placeholder');
             var toolAddShape = document.getElementById('ckpp-tool-add-shape');
             if (toolAddText) toolAddText.onclick = function() {
                 if (window.ckppFabricCanvas) {
@@ -508,6 +561,25 @@
                     canvas.centerObject(text);
                     text.setCoords();
                     canvas.setActiveObject(text);
+                    canvas.requestRenderAll();
+                }
+            };
+            if (toolAddTextbox) toolAddTextbox.onclick = function() {
+                if (window.ckppFabricCanvas) {
+                    var canvas = window.ckppFabricCanvas;
+                    var textbox = new fabric.Textbox('Text Box', {
+                        fontSize: 24,
+                        fill: '#222222',
+                        width: 200,
+                        height: 60,
+                        minWidth: 40,
+                        minHeight: 24,
+                        type: 'textbox', // ensure type is set for config
+                    });
+                    canvas.add(textbox);
+                    canvas.centerObject(textbox);
+                    textbox.setCoords();
+                    canvas.setActiveObject(textbox);
                     canvas.requestRenderAll();
                 }
             };
@@ -562,6 +634,31 @@
                     });
                 };
                 fileInput.click();
+            };
+            if (toolAddImagePlaceholder) toolAddImagePlaceholder.onclick = function() {
+                if (window.ckppFabricCanvas) {
+                    var canvas = window.ckppFabricCanvas;
+                    var imgPh = new fabric.Rect({
+                        width: 180,
+                        height: 180,
+                        fill: 'rgba(0,0,0,0)',
+                        stroke: '#0073aa',
+                        strokeDashArray: [8, 6],
+                        strokeWidth: 2,
+                        selectable: true,
+                        hasBorders: true,
+                        hasControls: true,
+                        placeholderType: 'image',
+                        label: 'Image Placeholder',
+                        type: 'rect',
+                        objectCaching: false
+                    });
+                    canvas.add(imgPh);
+                    canvas.centerObject(imgPh);
+                    imgPh.setCoords();
+                    canvas.setActiveObject(imgPh);
+                    canvas.requestRenderAll();
+                }
             };
             if (toolAddShape) toolAddShape.onclick = function() {
                 if (window.ckppFabricCanvas) {
@@ -752,6 +849,30 @@
         fabricCanvas.on('object:moving', function(e) {
             fabricCanvas.fire('object:modified', { target: e.target });
         });
+        // Custom rendering for image placeholder: draw label in center
+        fabric.Rect.prototype._render = (function(_super) {
+            return function(ctx) {
+                _super.call(this, ctx);
+                if (this.placeholderType === 'image') {
+                    ctx.save();
+                    ctx.font = 'bold 16px Arial';
+                    ctx.fillStyle = '#0073aa';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.globalAlpha = 0.7;
+                    ctx.fillText(this.label || 'Image Placeholder', this.width/2, this.height/2);
+                    ctx.restore();
+                }
+            };
+        })(fabric.Rect.prototype._render);
+        // --- Custom serialization for image placeholders ---
+        var origRectToObject = fabric.Rect.prototype.toObject;
+        fabric.Rect.prototype.toObject = function(propertiesToInclude) {
+            var obj = origRectToObject.call(this, propertiesToInclude);
+            if (this.placeholderType) obj.placeholderType = this.placeholderType;
+            if (this.label) obj.label = this.label;
+            return obj;
+        };
     }
     // For modal or in-page designer
     $(document).ready(function() {

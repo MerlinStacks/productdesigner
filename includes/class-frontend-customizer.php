@@ -196,7 +196,11 @@ class CKPP_Frontend_Customizer {
     }
 
     public function output_live_preview_container($force = false) {
-        global $post, $ckpp_live_preview_shortcode_used;
+        global $post, $ckpp_live_preview_shortcode_used, $wpdb;
+        // Debug: Log current prefix and table info
+        error_log('CKPP: Current prefix is ' . $wpdb->prefix);
+        error_log('CKPP: Looking for table ' . $wpdb->prefix . 'ckpp_fonts');
+        error_log('CKPP: Tables: ' . print_r($wpdb->get_col('SHOW TABLES'), true));
         if (!$force && !empty($ckpp_live_preview_shortcode_used)) {
             // If shortcode is used, skip hook-based output
             return;
@@ -205,9 +209,31 @@ class CKPP_Frontend_Customizer {
         if ( $assigned_design ) {
             $debug_mode = get_option('ckpp_debug_mode', false) ? 'true' : 'false';
             $nonce = wp_create_nonce('ckpp_customizer_nonce');
-            // Aggressive CSS: hide the gallery on single product pages when live preview is present
-            echo '<style>body.single-product #ckpp-live-preview { display: block !important; } body.single-product .woocommerce-product-gallery { display: none !important; }</style>';
-            echo '<div id="ckpp-live-preview" style="margin-bottom:2em;"></div>';
+            // Output custom font CSS for all uploaded fonts
+            if ( class_exists('CKPP_Fonts') ) {
+                $fonts = CKPP_Fonts::get_fonts();
+                // Debug: Log fonts to error log
+                error_log('CKPP Frontend Fonts: ' . print_r($fonts, true));
+                // Debug: Output font list
+                echo '<!-- CKPP DEBUG: Fonts found: ';
+                if (isset($fonts) && $fonts) {
+                    foreach ($fonts as $font) {
+                        echo 'Name: ' . $font->font_name . ', URL: ' . $font->font_file . ' | ';
+                    }
+                } else {
+                    echo 'No fonts found.';
+                }
+                echo '-->';
+                foreach ( $fonts as $font ) {
+                    $font_face = esc_attr( $font->font_name );
+                    $font_url = esc_url( $font->font_file );
+                    echo "<style>@font-face { font-family: '{$font_face}'; src: url('{$font_url}'); font-display: swap; }</style>\n";
+                }
+                // Debug: Font CSS output complete
+                echo '<!-- CKPP DEBUG: Font CSS output complete -->';
+            }
+            // Output a hidden placeholder; JS will move/show it if a gallery is found
+            echo '<div id="ckpp-live-preview" style="display:none;margin-bottom:2em;"></div>';
             echo '<script>window.CKPP_LIVE_PREVIEW = { productId: ' . intval($post->ID) . ', designId: ' . intval($assigned_design) . ', nonce: "' . esc_js($nonce) . '" };
 window.CKPP_DEBUG_MODE = ' . $debug_mode . ';</script>';
             if ( get_option('ckpp_debug_mode', false) ) {

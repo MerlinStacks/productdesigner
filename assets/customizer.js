@@ -75,6 +75,10 @@
                 html += '<label for="ckpp-input-text-' + idx + '">' + CKPPCustomizer.textLabel.replace('%d', idx+1) + '</label> ' +
                     '<input type="text" id="ckpp-input-text-' + idx + '" name="text_' + idx + '" value="' + (obj.text || '') + '" aria-required="true" /><br/>';
             }
+            if (obj.type === 'textbox') {
+                html += '<label for="ckpp-input-textbox-' + idx + '">' + (obj.label || ('Text Box ' + (idx+1))) + '</label> ' +
+                    '<textarea id="ckpp-input-textbox-' + idx + '" name="textbox_' + idx + '" rows="2" style="width:100%;resize:vertical;" aria-required="true">' + (obj.text || '') + '</textarea><br/>';
+            }
             if (obj.placeholderType === 'dropdown' && obj.options) {
                 html += '<label for="ckpp-input-dropdown-' + idx + '">' + (obj.label || 'Dropdown') + '</label> ';
                 html += '<select id="ckpp-input-dropdown-' + idx + '" name="dropdown_' + idx + '">';
@@ -143,6 +147,36 @@
                         const val = form['text_' + idx] ? form['text_' + idx].value : obj.text;
                         fabricCanvas.item(idx).set('text', val);
                     }
+                    if (obj.type === 'textbox') {
+                        const val = form['textbox_' + idx] ? form['textbox_' + idx].value : obj.text;
+                        var textboxObj = fabricCanvas.item(idx);
+                        textboxObj.set('text', val);
+                        // Auto-fit font size to fit in bounding box
+                        var maxFont = 48, minFont = 10;
+                        var boxWidth = textboxObj.width * (textboxObj.scaleX || 1);
+                        var boxHeight = textboxObj.height * (textboxObj.scaleY || 1);
+                        var fontSize = textboxObj.fontSize || 24;
+                        textboxObj.set('fontSize', fontSize);
+                        fabricCanvas.renderAll();
+                        // Shrink font if text overflows
+                        while ((textboxObj.height > boxHeight || textboxObj.width > boxWidth) && fontSize > minFont) {
+                            fontSize -= 1;
+                            textboxObj.set('fontSize', fontSize);
+                            fabricCanvas.renderAll();
+                        }
+                        // Grow font if text fits and there is room
+                        while ((textboxObj.height < boxHeight && textboxObj.width < boxWidth) && fontSize < maxFont) {
+                            fontSize += 1;
+                            textboxObj.set('fontSize', fontSize);
+                            fabricCanvas.renderAll();
+                            if (textboxObj.height > boxHeight || textboxObj.width > boxWidth) {
+                                fontSize -= 1;
+                                textboxObj.set('fontSize', fontSize);
+                                fabricCanvas.renderAll();
+                                break;
+                            }
+                        }
+                    }
                     if (obj.placeholderType === 'dropdown') {
                         const val = form['dropdown_' + idx] ? form['dropdown_' + idx].value : (obj.options ? obj.options[0] : '');
                         fabricCanvas.item(idx).set('fill', '#e0e0e0');
@@ -152,7 +186,16 @@
                         const previewImg = document.getElementById('ckpp-image-preview-' + idx);
                         if (previewImg && previewImg.src && previewImg.style.display !== 'none') {
                             fabric.Image.fromURL(previewImg.src, function(img) {
-                                img.set({ left: fabricCanvas.item(idx).left, top: fabricCanvas.item(idx).top, scaleX: fabricCanvas.item(idx).width / img.width, scaleY: fabricCanvas.item(idx).height / img.height });
+                                img.set({
+                                    left: fabricCanvas.item(idx).left,
+                                    top: fabricCanvas.item(idx).top,
+                                    scaleX: fabricCanvas.item(idx).width / img.width,
+                                    scaleY: fabricCanvas.item(idx).height / img.height,
+                                    selectable: false,
+                                    evented: false,
+                                    hasControls: false,
+                                    hasBorders: false
+                                });
                                 fabricCanvas.remove(fabricCanvas.item(idx));
                                 fabricCanvas.insertAt(img, idx, false);
                                 fabricCanvas.renderAll();
@@ -162,10 +205,20 @@
                 });
             }
             fabricCanvas.renderAll();
+            // After loading the canvas, ensure all images are not selectable/movable
+            fabricCanvas.forEachObject(function(obj) {
+                if (obj.type === 'image') {
+                    obj.selectable = false;
+                    obj.evented = false;
+                    obj.hasControls = false;
+                    obj.hasBorders = false;
+                }
+            });
         });
         fabricCanvas.discardActiveObject();
         fabricCanvas.selection = false;
         fabricCanvas.forEachObject(function(obj) { obj.selectable = false; });
+        fabricCanvas.forEachObject(function(obj) { if (obj.type === 'textbox') { obj.editable = false; obj.evented = false; }});
     }
     function savePersonalization() {
         const form = document.getElementById('ckpp-customizer-form');
@@ -174,6 +227,9 @@
         config.objects.forEach(function(obj, idx) {
             if (obj.type === 'i-text') {
                 data['text_' + idx] = form['text_' + idx] ? form['text_' + idx].value : '';
+            }
+            if (obj.type === 'textbox') {
+                data['textbox_' + idx] = form['textbox_' + idx] ? form['textbox_' + idx].value : '';
             }
             if (obj.placeholderType === 'dropdown') {
                 data['dropdown_' + idx] = form['dropdown_' + idx] ? form['dropdown_' + idx].value : '';
@@ -251,6 +307,8 @@
                         var config = null;
                         try { config = JSON.parse(resp.data.config); } catch(e) {}
                         if (config && config.objects) {
+                            // Insert text input boxes above Add to Cart
+                            insertTextInputsAboveAddToCart(config);
                             if (!window.fabric) {
                                 var fabricScript = document.createElement('script');
                                 fabricScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js';
@@ -276,67 +334,368 @@
     $(document).ready(initLivePreviewWhenReady);
     function renderLivePreview(config) {
         var previewDiv = document.getElementById('ckpp-live-preview');
-        previewDiv.innerHTML = '<canvas id="ckpp-live-preview-canvas" width="500" height="400" style="border:1px solid #ccc;"></canvas>';
-        var fabricCanvas = new fabric.Canvas('ckpp-live-preview-canvas', { selection: false });
-        fabricCanvas.loadFromJSON(config, function() { fabricCanvas.renderAll(); });
-        fabricCanvas.discardActiveObject();
-        fabricCanvas.selection = false;
-        fabricCanvas.forEachObject(function(obj) { obj.selectable = false; });
-        // Debug panel
-        if (window.CKPP_DEBUG_MODE) {
-            var debugPanel = document.createElement('pre');
-            debugPanel.style.background = '#f8f8f8';
-            debugPanel.style.border = '1px solid #ccc';
-            debugPanel.style.padding = '1em';
-            debugPanel.style.marginTop = '1em';
-            debugPanel.style.fontSize = '12px';
-            debugPanel.style.overflowX = 'auto';
-            debugPanel.textContent = JSON.stringify(config, null, 2);
-            previewDiv.appendChild(debugPanel);
+        // Responsive sizing logic
+        function getAspectRatio(config) {
+            // Try to get from config.printSettings or fallback to 1:1
+            if (config && config.printSettings && config.printSettings.width && config.printSettings.height) {
+                var w = parseFloat(config.printSettings.width);
+                var h = parseFloat(config.printSettings.height);
+                if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) return w / h;
+            }
+            // fallback to 1:1
+            return 1;
+        }
+        // Helper: get all font families used in config
+        function getUsedFonts(config) {
+            var fonts = new Set();
+            if (config && config.objects && Array.isArray(config.objects)) {
+                config.objects.forEach(function(obj) {
+                    if (obj.fontFamily) fonts.add(obj.fontFamily);
+                });
+            }
+            return Array.from(fonts);
+        }
+        // Helper: load a font using FontFace API
+        function loadFont(fontFamily) {
+            // Robustly find the @font-face rule for the fontFamily (case-insensitive, ignore spaces/quotes)
+            var found = false;
+            var fontUrl = null;
+            for (var i = 0; i < document.styleSheets.length; i++) {
+                var sheet = document.styleSheets[i];
+                try {
+                    var rules = sheet.cssRules || sheet.rules;
+                    if (!rules) continue;
+                    for (var j = 0; j < rules.length; j++) {
+                        var rule = rules[j];
+                        if (rule.type === CSSRule.FONT_FACE_RULE) {
+                            var famMatch = rule.cssText.match(/font-family:\s*['\"]?([^;'"]+)['\"]?/i);
+                            if (famMatch && famMatch[1].trim().toLowerCase() === fontFamily.trim().toLowerCase()) {
+                                var match = rule.cssText.match(/src: url\(['"]?([^'")]+)['"]?\)/);
+                                if (match) {
+                                    fontUrl = match[1];
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } catch (e) { continue; }
+                if (found) break;
+            }
+            if (fontUrl) {
+                var font = new FontFace(fontFamily, 'url(' + fontUrl + ')');
+                document.fonts.add(font);
+                return font.load().then(function() {
+                    console.log('[CKPP] Font loaded:', fontFamily, fontUrl);
+                }).catch(function(err) {
+                    console.warn('[CKPP] Failed to load font:', fontFamily, fontUrl, err);
+                });
+            } else {
+                // If not found, log a warning
+                console.warn('[CKPP] FontFace CSS not found for:', fontFamily);
+                return Promise.resolve();
+            }
+        }
+        function resizeAndRender() {
+            var parent = previewDiv.parentElement;
+            var maxWidth = parent ? parent.offsetWidth : 500;
+            var aspect = getAspectRatio(config);
+            var maxHeight = Math.round(maxWidth / aspect);
+            previewDiv.innerHTML = '';
+            var canvasEl = document.createElement('canvas');
+            canvasEl.id = 'ckpp-live-preview-canvas';
+            canvasEl.width = maxWidth;
+            canvasEl.height = maxHeight;
+            canvasEl.style.width = '100%';
+            canvasEl.style.height = 'auto';
+            canvasEl.style.maxWidth = maxWidth + 'px';
+            canvasEl.style.maxHeight = maxHeight + 'px';
+            canvasEl.style.border = '1px solid #ccc';
+            previewDiv.appendChild(canvasEl);
+            // Load all fonts, then render
+            var usedFonts = getUsedFonts(config);
+            Promise.all(usedFonts.map(loadFont)).then(function() {
+                var fabricCanvas = new fabric.Canvas('ckpp-live-preview-canvas', { selection: false });
+                window.ckppLivePreviewCanvas = fabricCanvas; // Store globally for input sync
+                fabricCanvas.loadFromJSON(config, function() {
+                    // Disable direct editing for text objects
+                    fabricCanvas.getObjects().forEach(function(obj) {
+                        if (obj.type === 'i-text') {
+                            obj.editable = false;
+                            obj.evented = false;
+                            obj.selectable = false;
+                        }
+                    });
+                    var origW = 1000, origH = 1000;
+                    if (config && config.printSettings && config.printSettings.width && config.printSettings.height) {
+                        origW = parseFloat(config.printSettings.width);
+                        origH = parseFloat(config.printSettings.height);
+                    } else if (config && config.width && config.height) {
+                        origW = parseFloat(config.width);
+                        origH = parseFloat(config.height);
+                    }
+                    var scaleX = maxWidth / origW;
+                    var scaleY = maxHeight / origH;
+                    var scale = Math.min(scaleX, scaleY);
+                    fabricCanvas.setDimensions({ width: maxWidth, height: maxHeight });
+                    fabricCanvas.setZoom(scale);
+                    fabricCanvas.renderAll();
+                });
+                fabricCanvas.discardActiveObject();
+                fabricCanvas.selection = false;
+                fabricCanvas.forEachObject(function(obj) { obj.selectable = false; });
+            });
+            // Debug panel
+            if (window.CKPP_DEBUG_MODE) {
+                var debugPanel = document.createElement('pre');
+                debugPanel.style.background = '#f8f8f8';
+                debugPanel.style.border = '1px solid #ccc';
+                debugPanel.style.padding = '1em';
+                debugPanel.style.marginTop = '1em';
+                debugPanel.style.fontSize = '12px';
+                debugPanel.style.overflowX = 'auto';
+                debugPanel.textContent = JSON.stringify(config, null, 2);
+                previewDiv.appendChild(debugPanel);
+            }
+        }
+        // Initial render
+        resizeAndRender();
+        // Responsive: re-render on window resize
+        window.addEventListener('resize', resizeAndRender);
+    }
+    // Insert text input boxes above Add to Cart for each text object and text box
+    function insertTextInputsAboveAddToCart(config) {
+        var addToCartBtn = document.querySelector('form.cart button[type="submit"], form.cart input[type="submit"]');
+        if (!addToCartBtn) return;
+        var form = addToCartBtn.closest('form.cart');
+        if (!form) return;
+        // Remove any previous container
+        var prev = document.getElementById('ckpp-text-inputs-container');
+        if (prev) prev.remove();
+        // Find all text, textbox, and image placeholder objects
+        var inputObjs = (config.objects || []).map(function(obj, idx) { return {obj, idx}; }).filter(function(pair) {
+            return pair.obj.type === 'i-text' || pair.obj.type === 'textbox' || pair.obj.placeholderType === 'image';
+        });
+        if (inputObjs.length === 0) return;
+        var container = document.createElement('div');
+        container.id = 'ckpp-text-inputs-container';
+        container.style.marginBottom = '1em';
+        inputObjs.forEach(function(pair) {
+            var obj = pair.obj;
+            var idx = pair.idx;
+            // Use label from backend config, fallback to sensible default
+            var rawLabel = obj.label || (obj.type === 'i-text' ? 'Text ' + (idx+1) : obj.type === 'textbox' ? 'Text Box ' + (idx+1) : obj.placeholderType === 'image' ? 'Image Upload' : 'Field ' + (idx+1));
+            // Sanitize label for use in name/id: lowercase, dashes, alphanumeric only
+            var sanitizedLabel = rawLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            var inputId, inputName;
+            if (obj.type === 'i-text') {
+                inputId = 'ckpp-text-input-' + sanitizedLabel + '-' + idx;
+                inputName = 'ckpp_text_input_' + sanitizedLabel + '_' + idx;
+            } else if (obj.type === 'textbox') {
+                inputId = 'ckpp-textarea-input-' + sanitizedLabel + '-' + idx;
+                inputName = 'ckpp_textarea_input_' + sanitizedLabel + '_' + idx;
+            } else if (obj.placeholderType === 'image') {
+                inputId = 'ckpp-image-input-' + sanitizedLabel + '-' + idx;
+                inputName = 'ckpp_image_input_' + sanitizedLabel + '_' + idx;
+            }
+            var label = document.createElement('label');
+            label.setAttribute('for', inputId);
+            label.textContent = rawLabel + ':';
+            label.style.display = 'block';
+            label.style.fontWeight = 'bold';
+            label.style.marginBottom = '0.2em';
+            container.appendChild(label);
+            if (obj.type === 'i-text') {
+                var input = document.createElement('input');
+                input.type = 'text';
+                input.id = inputId;
+                input.name = inputName;
+                input.value = obj.text || '';
+                input.setAttribute('aria-required', 'true');
+                input.style.width = '100%';
+                input.style.marginBottom = '0.7em';
+                input.setAttribute('autocomplete', 'off');
+                input.setAttribute('maxlength', obj.maxLength || 100);
+                input.addEventListener('input', function() {
+                    var canvas = window.ckppLivePreviewCanvas;
+                    if (canvas && canvas.getObjects) {
+                        var objs = canvas.getObjects();
+                        var textObj = objs.filter(function(o) { return o.type === 'i-text'; })[getTextIndex(config, idx, 'i-text')];
+                        if (textObj) {
+                            textObj.set('text', input.value);
+                            canvas.renderAll();
+                        }
+                    }
+                    validateTextInputs();
+                });
+                container.appendChild(input);
+            } else if (obj.type === 'textbox') {
+                var textarea = document.createElement('textarea');
+                textarea.id = inputId;
+                textarea.name = inputName;
+                textarea.value = obj.text || '';
+                textarea.setAttribute('aria-required', 'true');
+                textarea.setAttribute('rows', '2');
+                textarea.style.width = '100%';
+                textarea.style.resize = 'vertical';
+                textarea.style.marginBottom = '0.7em';
+                textarea.setAttribute('maxlength', obj.maxLength || 500);
+                textarea.addEventListener('input', function() {
+                    var canvas = window.ckppLivePreviewCanvas;
+                    if (canvas && canvas.getObjects) {
+                        var objs = canvas.getObjects();
+                        var textboxObj = objs.filter(function(o) { return o.type === 'textbox'; })[getTextIndex(config, idx, 'textbox')];
+                        if (textboxObj) {
+                            textboxObj.set('text', textarea.value);
+                            canvas.renderAll();
+                        }
+                    }
+                    validateTextInputs();
+                });
+                container.appendChild(textarea);
+            } else if (obj.placeholderType === 'image') {
+                var fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.id = inputId;
+                fileInput.name = inputName;
+                fileInput.accept = 'image/*';
+                fileInput.setAttribute('aria-required', 'true');
+                fileInput.style.marginBottom = '0.7em';
+                var previewImg = document.createElement('img');
+                previewImg.id = 'ckpp-image-preview-' + sanitizedLabel + '-' + idx;
+                previewImg.alt = 'Image preview';
+                previewImg.style.display = 'none';
+                previewImg.style.maxWidth = '120px';
+                previewImg.style.maxHeight = '80px';
+                previewImg.style.marginTop = '0.5em';
+                fileInput.addEventListener('change', function() {
+                    if (fileInput.files && fileInput.files[0]) {
+                        var reader = new FileReader();
+                        reader.onload = function(ev) {
+                            previewImg.src = ev.target.result;
+                            previewImg.style.display = 'block';
+                            previewImg.setAttribute('aria-label', 'Image preview');
+                            // Sync to live preview
+                            var canvas = window.ckppLivePreviewCanvas;
+                            if (canvas && canvas.getObjects) {
+                                var objs = canvas.getObjects();
+                                var imgObjIdx = getImagePlaceholderIndex(config, idx);
+                                var imgObj = objs.filter(function(o) { return o.placeholderType === 'image'; })[imgObjIdx];
+                                var boxSource = imgObj || config.objects[idx];
+                                if (!boxSource) return;
+                                var objsNow = canvas.getObjects();
+                                for (var i = objsNow.length - 1; i >= 0; i--) {
+                                    var o = objsNow[i];
+                                    if (o.type === 'image' && !o.placeholderType) {
+                                        if (Math.abs(o.left - boxSource.left) < 2 && Math.abs(o.top - boxSource.top) < 2) {
+                                            canvas.remove(o);
+                                        }
+                                    }
+                                }
+                                fabric.Image.fromURL(ev.target.result, function(img) {
+                                    var boxW = (boxSource.width || 0) * (boxSource.scaleX || 1);
+                                    var boxH = (boxSource.height || 0) * (boxSource.scaleY || 1);
+                                    var imgW = img.width;
+                                    var imgH = img.height;
+                                    var scale = Math.max(boxW / imgW, boxH / imgH);
+                                    var scaledW = imgW * scale;
+                                    var scaledH = imgH * scale;
+                                    var left = (boxSource.left || 0) + (boxW - scaledW) / 2;
+                                    var top = (boxSource.top || 0) + (boxH - scaledH) / 2;
+                                    img.set({
+                                        left: left,
+                                        top: top,
+                                        scaleX: scale,
+                                        scaleY: scale,
+                                        selectable: false,
+                                        evented: false,
+                                        hasControls: false,
+                                        hasBorders: false
+                                    });
+                                    if (imgObj) canvas.remove(imgObj);
+                                    canvas.insertAt(img, idx, false);
+                                    canvas.renderAll();
+                                }, { crossOrigin: 'anonymous' });
+                            }
+                            validateTextInputs();
+                        };
+                        reader.readAsDataURL(fileInput.files[0]);
+                    } else {
+                        previewImg.src = '';
+                        previewImg.style.display = 'none';
+                        validateTextInputs();
+                    }
+                });
+                container.appendChild(fileInput);
+                container.appendChild(previewImg);
+            }
+        });
+        // Insert above Add to Cart
+        form.insertBefore(container, addToCartBtn);
+        // Initial validation
+        validateTextInputs();
+    }
+    // Helper to get the Nth index of a type in config.objects
+    function getTextIndex(config, idx, type) {
+        var count = -1;
+        for (var i = 0; i <= idx; i++) {
+            if (config.objects[i].type === type) count++;
+        }
+        return count;
+    }
+    // Helper to get the Nth image placeholder index
+    function getImagePlaceholderIndex(config, idx) {
+        var count = -1;
+        for (var i = 0; i <= idx; i++) {
+            if (config.objects[i].placeholderType === 'image') count++;
+        }
+        return count;
+    }
+    // Validate text, textarea, and image inputs and enable/disable Add to Cart
+    function validateTextInputs() {
+        var container = document.getElementById('ckpp-text-inputs-container');
+        if (!container) return;
+        var textInputs = container.querySelectorAll('input[type="text"]');
+        var textareas = container.querySelectorAll('textarea');
+        var fileInputs = container.querySelectorAll('input[type="file"]');
+        var allFilled = true;
+        textInputs.forEach(function(input) {
+            if (!input.value.trim()) allFilled = false;
+        });
+        textareas.forEach(function(textarea) {
+            if (!textarea.value.trim()) allFilled = false;
+        });
+        fileInputs.forEach(function(fileInput) {
+            var idx = fileInput.id.split('-').pop();
+            var previewImg = document.getElementById('ckpp-image-preview-' + idx);
+            if (!previewImg || !previewImg.src || previewImg.style.display === 'none') allFilled = false;
+        });
+        var addToCartBtn = document.querySelector('form.cart button[type="submit"], form.cart input[type="submit"]');
+        if (addToCartBtn) {
+            addToCartBtn.disabled = !allFilled;
         }
     }
-    // Remove or comment out the replaceBlockGalleryWithPreview function and its invocation
-    // function replaceBlockGalleryWithPreview() {
-    //     if (!window.CKPP_LIVE_PREVIEW) return;
-    //     var tries = 0;
-    //     function tryReplace() {
-    //         var blockGallery = document.querySelector('.wp-block-woocommerce-product-image-gallery .woocommerce-product-gallery');
-    //         if (blockGallery) {
-    //             blockGallery.innerHTML = '';
-    //             var previewDiv = document.createElement('div');
-    //             previewDiv.id = 'ckpp-live-preview';
-    //             blockGallery.appendChild(previewDiv);
-    //             var livePreviewNonce = window.CKPP_LIVE_PREVIEW.nonce || (window.CKPPCustomizer && CKPPCustomizer.nonce);
-    //             $.get(CKPPCustomizer.ajaxUrl, {
-    //                 action: 'ckpp_get_product_config',
-    //                 nonce: livePreviewNonce,
-    //                 productId: CKPP_LIVE_PREVIEW.productId
-    //             }, function(resp) {
-    //                 if (resp.success && resp.data.config) {
-    //                     var config = null;
-    //                     try { config = JSON.parse(resp.data.config); } catch(e) {}
-    //                     if (config && config.objects) {
-    //                         if (!window.fabric) {
-    //                             var fabricScript = document.createElement('script');
-    //                             fabricScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js';
-    //                             fabricScript.onload = function() { renderLivePreview(config); };
-    //                             document.body.appendChild(fabricScript);
-    //                         } else {
-    //                             renderLivePreview(config);
-    //                         }
-    //                     } else {
-    //                         previewDiv.innerHTML = '<em>No personalization preview available.</em>';
-    //                     }
-    //                 } else {
-    //                     previewDiv.innerHTML = '<em>No personalization preview available.</em>';
-    //                 }
-    //             });
-    //         } else if (tries < 20) {
-    //             tries++;
-    //             setTimeout(tryReplace, 100);
-    //         }
-    //     }
-    //     tryReplace();
-    // }
-    // $(document).ready(replaceBlockGalleryWithPreview);
+    // Move and show live preview only if a gallery container is found
+    function placeLivePreviewDiv() {
+        var previewDiv = document.getElementById('ckpp-live-preview');
+        if (!previewDiv) return;
+        // Try classic WooCommerce gallery
+        var classicGallery = document.querySelector('.woocommerce-product-gallery');
+        if (classicGallery) {
+            classicGallery.style.display = 'none';
+            classicGallery.parentNode.insertBefore(previewDiv, classicGallery);
+            previewDiv.style.display = 'block';
+            return;
+        }
+        // Try WooCommerce block gallery
+        var blockGallery = document.querySelector('.wp-block-woocommerce-product-image-gallery');
+        if (blockGallery) {
+            blockGallery.style.display = 'none';
+            blockGallery.parentNode.insertBefore(previewDiv, blockGallery);
+            previewDiv.style.display = 'block';
+            return;
+        }
+        // If neither found, leave preview hidden
+    }
+    $(document).ready(placeLivePreviewDiv);
 })(jQuery); 

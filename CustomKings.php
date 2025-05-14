@@ -18,12 +18,14 @@ if ( ! defined( 'CUSTOMKINGS_PLUGIN_FILE' ) ) {
     define( 'CUSTOMKINGS_PLUGIN_FILE', __FILE__ );
 }
 
+// Always load font management class so fonts are available on frontend
+require_once plugin_dir_path( __FILE__ ) . 'admin/class-fonts.php';
+
 // Main plugin class
 class CustomKings_Product_Personalizer {
     public function __construct() {
         if ( is_admin() ) {
             require_once plugin_dir_path( __FILE__ ) . 'admin/class-admin-ui.php';
-            require_once plugin_dir_path( __FILE__ ) . 'admin/class-fonts.php';
             require_once plugin_dir_path( __FILE__ ) . 'admin/class-clipart.php';
             require_once plugin_dir_path( __FILE__ ) . 'admin/class-product-designer.php';
             new CKPP_Admin_UI();
