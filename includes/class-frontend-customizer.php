@@ -9,7 +9,14 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+/**
+ * Class CKPP_Frontend_Customizer
+ * Handles frontend product personalization, AJAX, and WooCommerce integration.
+ */
 class CKPP_Frontend_Customizer {
+    /**
+     * Register hooks for scripts, AJAX, and WooCommerce integration.
+     */
     public function __construct() {
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ] );
         add_action( 'woocommerce_before_add_to_cart_form', [ $this, 'output_personalize_button' ] );
@@ -26,6 +33,9 @@ class CKPP_Frontend_Customizer {
         }
     }
 
+    /**
+     * Enqueue frontend assets and localize JS strings.
+     */
     public function enqueue_assets() {
         if ( is_product() ) {
             wp_enqueue_script( 'ckpp-customizer', plugins_url( '../assets/customizer.js', __FILE__ ), [ 'jquery' ], '1.0', true );
@@ -47,6 +57,9 @@ class CKPP_Frontend_Customizer {
         }
     }
 
+    /**
+     * Output the Personalize button and modal container on the product page.
+     */
     public function output_personalize_button() {
         global $post;
         $assigned_design = get_post_meta( $post->ID, '_ckpp_design_id', true );
@@ -61,12 +74,15 @@ class CKPP_Frontend_Customizer {
         }
     }
 
+    /**
+     * AJAX: Return personalization config for a product. Requires nonce.
+     */
     public function ajax_get_config() {
-        error_log('CKPP AJAX handler reached');
-        // check_ajax_referer( 'ckpp_customizer_nonce', 'nonce' );
-        if ( defined('WP_DEBUG') && WP_DEBUG ) {
-            error_log('CKPP AJAX: nonce=' . ( isset($_REQUEST['nonce']) ? $_REQUEST['nonce'] : 'none' ) . ', productId=' . ( isset($_REQUEST['productId']) ? $_REQUEST['productId'] : 'none' ) . ', user=' . ( is_user_logged_in() ? 'logged-in' : 'guest' ));
-        }
+        check_ajax_referer( 'ckpp_customizer_nonce', 'nonce' );
+        // error_log('CKPP AJAX handler reached');
+        // if ( defined('WP_DEBUG') && WP_DEBUG ) {
+        //     error_log('CKPP AJAX: nonce=' . ( isset($_REQUEST['nonce']) ? $_REQUEST['nonce'] : 'none' ) . ', productId=' . ( isset($_REQUEST['productId']) ? $_REQUEST['productId'] : 'none' ) . ', user=' . ( is_user_logged_in() ? 'logged-in' : 'guest' ));
+        // }
         $product_id = intval( $_GET['productId'] );
         $assigned_design = get_post_meta( $product_id, '_ckpp_design_id', true );
         $config = '';
@@ -81,34 +97,99 @@ class CKPP_Frontend_Customizer {
         wp_send_json_success( [ 'config' => $config ] );
     }
 
-    public function add_cart_item_data( $cart_item_data, $product_id, $variation_id ) {
-        if ( isset( $_POST['ckpp_personalization_data'] ) ) {
-            $cart_item_data['ckpp_personalization_data'] = wp_unslash( $_POST['ckpp_personalization_data'] );
+    /**
+     * Add personalization data to WooCommerce cart item and ensure unique cart item for each personalization.
+     *
+     * @param array $cart_item_data
+     * @param int $product_id
+     * @param int $variation_id
+     * @return array
+     */
+    public function add_cart_item_data($cart_item_data, $product_id, $variation_id) {
+        if (isset($_POST['ckpp_personalization_data'])) {
+            $personalization_data = wp_unslash($_POST['ckpp_personalization_data']);
+            $cart_item_data['ckpp_personalization_data'] = $personalization_data;
+            // This key ensures uniqueness for each personalization
+            $cart_item_data['ckpp_personalization_unique'] = md5($personalization_data);
+            $cart_item_data['ckpp_is_personalized'] = true;
         }
         return $cart_item_data;
     }
 
-    public function display_cart_item_data( $item_data, $cart_item ) {
-        if ( isset( $cart_item['ckpp_personalization_data'] ) ) {
-            $data = json_decode( $cart_item['ckpp_personalization_data'], true );
-            if ( is_array( $data ) ) {
-                foreach ( $data as $key => $value ) {
-                    $item_data[] = [
-                        'name' => esc_html( ucfirst( $key ) ),
-                        'value' => esc_html( $value ),
-                    ];
+    /**
+     * Display personalization data in cart/checkout, with image preview support and block theme compatibility.
+     *
+     * @param array $item_data
+     * @param array $cart_item
+     * @return array
+     */
+    public function display_cart_item_data($item_data, $cart_item) {
+        if (isset($cart_item['ckpp_personalization_data'])) {
+            $data = json_decode($cart_item['ckpp_personalization_data'], true);
+            if (is_array($data)) {
+                // Add a header for personalization details
+                $item_data[] = [
+                    'name' => esc_html__('Personalization Details', 'customkings'),
+                    'value' => '',
+                    'display' => '<strong>' . esc_html__('Personalization Details:', 'customkings') . '</strong>',
+                ];
+                
+                foreach ($data as $key => $value) {
+                    // Skip empty values
+                    if (empty($value)) continue;
+                    
+                    // Format the label nicely
+                    $label = ucwords(str_replace(['_', '-'], ' ', $key));
+                    
+                    // Handle image values
+                    if (is_string($value) && (strpos($value, 'data:image') === 0 || preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $value))) {
+                        $img_html = sprintf(
+                            '<img src="%s" alt="%s" style="max-width:100px;max-height:80px;display:block;margin:5px 0;" />',
+                            esc_url($value),
+                            esc_attr($label)
+                        );
+                        $item_data[] = [
+                            'name' => esc_html($label),
+                            'value' => $img_html,
+                            'display' => $img_html,
+                        ];
+                    } elseif (is_string($value) && $value !== '') {
+                        $item_data[] = [
+                            'name' => '- ' . esc_html($label),
+                            'value' => esc_html($value),
+                            'display' => sprintf(
+                                '<span style="display:block;margin:2px 0;">%s: %s</span>',
+                                esc_html($label),
+                                esc_html($value)
+                            ),
+                        ];
+                    }
                 }
             }
         }
         return $item_data;
     }
 
+    /**
+     * Save personalization data to order item meta.
+     *
+     * @param int $item_id
+     * @param array $values
+     * @param string $cart_item_key
+     */
     public function add_order_item_meta( $item_id, $values, $cart_item_key ) {
         if ( isset( $values['ckpp_personalization_data'] ) ) {
             wc_add_order_item_meta( $item_id, '_ckpp_personalization_data', $values['ckpp_personalization_data'] );
         }
     }
 
+    /**
+     * Output personalization data and preview in admin order view.
+     *
+     * @param int $item_id
+     * @param WC_Order_Item_Product $item
+     * @param WC_Order $order
+     */
     public function admin_order_item_personalization( $item_id, $item, $order ) {
         $data = wc_get_order_item_meta( $item_id, '_ckpp_personalization_data', true );
         $product_id = $item->get_product_id();
@@ -162,6 +243,9 @@ class CKPP_Frontend_Customizer {
         }
     }
 
+    /**
+     * AJAX: Generate print-ready PDF for an order item. Requires nonce and capability.
+     */
     public function ajax_generate_print_file() {
         check_ajax_referer( 'ckpp_customizer_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_woocommerce' ) ) wp_send_json_error( __( 'Unauthorized', 'customkings' ) );
@@ -195,6 +279,11 @@ class CKPP_Frontend_Customizer {
         wp_send_json_success( [ 'url' => $file_url ] );
     }
 
+    /**
+     * Output the live preview container for the product page.
+     *
+     * @param bool $force
+     */
     public function output_live_preview_container($force = false) {
         global $post, $ckpp_live_preview_shortcode_used, $wpdb;
         // Debug: Log current prefix and table info
@@ -243,6 +332,9 @@ window.CKPP_DEBUG_MODE = ' . $debug_mode . ';</script>';
         }
     }
 
+    /**
+     * Replace WooCommerce gallery with live preview if enabled.
+     */
     public function replace_gallery_with_live_preview() {
         global $ckpp_live_preview_shortcode_used;
         if (!empty($ckpp_live_preview_shortcode_used)) {
@@ -259,6 +351,9 @@ window.CKPP_DEBUG_MODE = ' . $debug_mode . ';</script>';
         }
     }
 
+    /**
+     * Add Print Files submenu to the admin menu.
+     */
     public function add_print_files_submenu() {
         add_submenu_page(
             'ckpp_admin',
@@ -270,6 +365,9 @@ window.CKPP_DEBUG_MODE = ' . $debug_mode . ';</script>';
         );
     }
 
+    /**
+     * Render the Print Files admin page.
+     */
     public function render_print_files_page() {
         if (!current_user_can('manage_woocommerce')) {
             wp_die(__('You do not have permission to access this page.', 'customkings'));
@@ -311,4 +409,15 @@ if (!function_exists('ckpp_live_preview_shortcode')) {
         return '';
     }
     add_shortcode('ckpp_live_preview', 'ckpp_live_preview_shortcode');
-} 
+}
+
+/**
+ * Ensure personalized items are always unique in the cart (block & classic themes).
+ * This filter appends a hash of the personalization data to the cart item key.
+ */
+add_filter('woocommerce_cart_id', function($cart_id, $cart_item, $cart_item_key) {
+    if (!empty($cart_item['ckpp_personalization_data'])) {
+        $cart_id .= '_' . md5($cart_item['ckpp_personalization_data']);
+    }
+    return $cart_id;
+}, 10, 3); 

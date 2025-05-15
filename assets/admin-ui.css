@@ -1,0 +1,383 @@
+/* CustomKings Modern Admin UI */
+
+:root {
+  --ckpp-accent: #fec610;
+  --ckpp-accent-hover: #e6b200;
+  --ckpp-bg: #f7f9fb;
+  --ckpp-card-bg: #fff;
+  --ckpp-border: #e3e7ed;
+  --ckpp-radius: 10px;
+  --ckpp-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  --ckpp-font: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+}
+
+body.ckpp-admin {
+  background: var(--ckpp-bg);
+  font-family: var(--ckpp-font);
+}
+
+.ckpp-admin .wrap {
+  max-width: 900px;
+  margin: 30px auto;
+  background: none;
+  box-shadow: none;
+}
+
+.ckpp-admin h1, .ckpp-admin h2, .ckpp-admin h3 {
+  font-family: var(--ckpp-font);
+  font-weight: 700;
+  color: #222;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.ckpp-admin .nav-tab-wrapper {
+  background: none;
+  border: none;
+  margin-bottom: 0 !important;
+  display: flex;
+  gap: 0.5em;
+}
+.ckpp-admin .nav-tab {
+  background: var(--ckpp-card-bg);
+  border: 1px solid var(--ckpp-border);
+  border-radius: var(--ckpp-radius) var(--ckpp-radius) 0 0;
+  color: #444;
+  font-size: 1.1em;
+  padding: 0.7em 1.5em;
+  margin-bottom: -1px !important;
+  box-shadow: none;
+  transition: background 0.2s, color 0.2s;
+  position: relative;
+  z-index: 2;
+}
+.ckpp-admin .nav-tab-active {
+  background: var(--ckpp-accent);
+  color: #fff;
+  border-bottom: none;
+  border-radius: var(--ckpp-radius) var(--ckpp-radius) 0 0;
+}
+
+.ckpp-admin .ckpp-tab-content {
+  background: var(--ckpp-card-bg);
+  border-radius: 0 0 var(--ckpp-radius) var(--ckpp-radius);
+  box-shadow: var(--ckpp-shadow);
+  border: 1px solid var(--ckpp-border);
+  border-top: none !important;
+  padding: 2.5em 2em 2em 2em;
+  margin-bottom: 2em;
+  margin-top: 0 !important;
+  position: relative;
+  z-index: 1;
+}
+.ckpp-admin .ckpp-tab-content > *:first-child {
+  margin-top: 0 !important;
+}
+
+.ckpp-admin .form-table th {
+  width: 200px;
+  color: #333;
+  font-weight: 500;
+  padding-top: 18px;
+  padding-bottom: 10px;
+}
+.ckpp-admin .form-table td {
+  padding-top: 14px;
+  padding-bottom: 10px;
+}
+
+.ckpp-admin input[type="text"],
+.ckpp-admin input[type="file"],
+.ckpp-admin input[type="password"],
+.ckpp-admin select {
+  border: 1px solid var(--ckpp-border);
+  border-radius: var(--ckpp-radius);
+  padding: 0.5em 1em;
+  font-size: 1em;
+  background: #f9fafb;
+  transition: border 0.2s;
+}
+.ckpp-admin input:focus, .ckpp-admin select:focus {
+  border-color: var(--ckpp-accent);
+  outline: none;
+}
+
+.ckpp-admin .button, .ckpp-admin button, .ckpp-admin input[type="submit"] {
+  background: var(--ckpp-accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--ckpp-radius);
+  padding: 0.6em 1.4em;
+  font-size: 1em;
+  font-weight: 600;
+  box-shadow: none;
+  transition: background 0.2s;
+  margin-right: 0.5em;
+  cursor: pointer;
+}
+.ckpp-admin .button:hover, .ckpp-admin button:hover, .ckpp-admin input[type="submit"]:hover {
+  background: var(--ckpp-accent-hover);
+}
+
+.ckpp-admin .notice {
+  border-radius: var(--ckpp-radius);
+  box-shadow: var(--ckpp-shadow);
+  margin-top: 1.5em;
+  font-size: 1.05em;
+}
+
+.ckpp-admin table.widefat {
+  background: var(--ckpp-card-bg);
+  border-radius: var(--ckpp-radius);
+  box-shadow: var(--ckpp-shadow);
+  border: 1px solid var(--ckpp-border);
+  margin-top: 1.5em;
+  overflow: hidden;
+}
+.ckpp-admin table.widefat th, .ckpp-admin table.widefat td {
+  border: none;
+  padding: 1em 1em;
+}
+.ckpp-admin table.widefat tbody tr {
+  transition: background 0.15s;
+}
+.ckpp-admin table.widefat tbody tr:hover {
+  background: #f0f6ff;
+}
+
+.ckpp-admin hr {
+  border: none;
+  border-top: 1px solid var(--ckpp-border);
+  margin: 2em 0;
+}
+
+@media (max-width: 782px) {
+  .ckpp-admin .ckpp-tab-content {
+    padding: 1em;
+  }
+  .ckpp-admin .form-table th, .ckpp-admin .form-table td {
+    display: block;
+    width: 100%;
+    padding-top: 8px;
+  }
+}
+
+/* Inline form row for font upload */
+.ckpp-admin .ckpp-inline-form-row {
+  display: flex;
+  gap: 1.2em;
+  align-items: center;
+  margin-bottom: 1.5em;
+}
+.ckpp-admin .ckpp-inline-form-row .form-control {
+  flex: 1 1 0;
+  min-width: 140px;
+  margin-bottom: 0;
+}
+.ckpp-admin .ckpp-inline-form-row .button {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+/* Drag & Drop Upload Area */
+.ckpp-admin .ckpp-upload-dropzone {
+  border: 2px dashed var(--ckpp-accent);
+  border-radius: var(--ckpp-radius);
+  background: #f4f8fd;
+  padding: 0.7em 0.5em;
+  text-align: center;
+  color: var(--ckpp-accent);
+  font-size: 1em;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  margin-bottom: 0.5em;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 140px;
+  min-height: 44px;
+  height: auto;
+  box-sizing: border-box;
+}
+.ckpp-admin .ckpp-upload-dropzone.dragover {
+  border-color: var(--ckpp-accent-hover);
+  background: #fffbe6;
+}
+.ckpp-admin .ckpp-upload-dropzone input[type="file"] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  z-index: 10;
+  cursor: pointer;
+}
+.ckpp-admin .ckpp-upload-dropzone .ckpp-upload-icon,
+.ckpp-admin .ckpp-upload-dropzone .ckpp-upload-label {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+.ckpp-admin .ckpp-upload-dropzone .ckpp-upload-icon {
+  font-size: 1.3em;
+  margin-bottom: 0.2em;
+  color: var(--ckpp-accent);
+}
+.ckpp-admin .ckpp-upload-btn {
+  background: var(--ckpp-accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--ckpp-radius);
+  padding: 0.8em 2em;
+  font-size: 1.1em;
+  font-weight: 700;
+  margin-top: 1em;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  transition: background 0.2s;
+}
+.ckpp-admin .ckpp-upload-btn:hover {
+  background: var(--ckpp-accent-hover);
+}
+
+.ckpp-admin .ckpp-upload-dropzone.has-file {
+  background: #e6fbe6;
+  border-color: #2ecc40;
+}
+.ckpp-admin .ckpp-upload-dropzone.has-file .ckpp-upload-icon {
+  color: #2ecc40;
+}
+.ckpp-admin .ckpp-upload-dropzone.has-file .ckpp-upload-label {
+  display: none;
+}
+.ckpp-admin .ckpp-upload-dropzone .ckpp-upload-filename {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.2em;
+  z-index: 20;
+  color: #222;
+  font-weight: 600;
+  font-size: 1em;
+  word-break: break-all;
+  background: transparent;
+  text-align: center;
+  pointer-events: none;
+  margin-top: 0;
+  display: block;
+}
+
+/* Clipart Grid Gallery */
+.ckpp-clipart-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 1.5em;
+  margin-top: 1.5em;
+  justify-content: flex-start;
+  overflow-x: auto;
+}
+.ckpp-clipart-card {
+  width: 180px;
+  min-width: 0;
+  max-width: 100%;
+  background: var(--ckpp-card-bg);
+  border: 1px solid var(--ckpp-border);
+  border-radius: var(--ckpp-radius);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  padding: 0.3em 0.3em 0.2em 0.3em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  position: relative;
+}
+.ckpp-clipart-card:hover {
+  border-color: var(--ckpp-accent);
+  box-shadow: 0 4px 16px rgba(254,198,16,0.10);
+}
+.ckpp-clipart-thumb {
+  width: 100%;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.15em;
+  background: #f9fafb;
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+.ckpp-clipart-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.ckpp-clipart-meta {
+  width: 100%;
+  text-align: center;
+  margin-top: 0;
+  padding: 0.1em 0 0.1em 0;
+}
+.ckpp-clipart-name {
+  font-weight: 600;
+  font-size: 0.98em;
+  margin-bottom: 0;
+  color: #222;
+  line-height: 1.2;
+}
+.ckpp-clipart-tags {
+  font-size: 0.85em;
+  color: #888;
+  margin-bottom: 0;
+  word-break: break-word;
+  line-height: 1.1;
+}
+.ckpp-clipart-delete-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: transparent !important;
+  color: #b32d2e;
+  border: 2px solid #b32d2e;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  cursor: pointer;
+  z-index: 2;
+  font-size: 1.1em;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.ckpp-clipart-delete-btn:hover, .ckpp-clipart-delete-btn:focus {
+  background: #ffeaea;
+  color: #a00;
+  border-color: #a00;
+  outline: 2px solid #b32d2e;
+}
+.ckpp-clipart-delete-btn .dashicons {
+  font-size: 1.2em;
+  line-height: 1;
+}
+.ckpp-clipart-delete-svg svg {
+  background: transparent !important;
+}
+.ckpp-clipart-delete-btn:hover .ckpp-clipart-delete-svg svg circle,
+.ckpp-clipart-delete-btn:focus .ckpp-clipart-delete-svg svg circle {
+  fill: #ffeaea;
+}
+.ckpp-clipart-filter-form {
+  margin-bottom: 1.5em;
+  display: flex;
+  align-items: center;
+  gap: 1em;
+} 

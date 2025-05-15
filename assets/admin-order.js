@@ -34,4 +34,61 @@ jQuery(document).ready(function($) {
             btn.focus();
         });
     });
-}); 
+});
+
+// Drag & Drop for CKPP Admin Uploads
+(function() {
+  function setupDropzone(dropzoneId, inputId) {
+    var dropzone = document.getElementById(dropzoneId);
+    var input = document.getElementById(inputId);
+    var filenameSpan = dropzone ? dropzone.querySelector('.ckpp-upload-filename') : null;
+    var labelSpan = dropzone ? dropzone.querySelector('.ckpp-upload-label') : null;
+    if (!dropzone || !input) return;
+    function showFileName() {
+      if (input.files && input.files.length && filenameSpan) {
+        console.log('File selected:', input.files[0].name);
+        filenameSpan.textContent = input.files[0].name;
+        filenameSpan.style.display = 'block';
+        dropzone.classList.add('has-file');
+        if (labelSpan) labelSpan.style.display = 'none';
+      } else if (filenameSpan) {
+        console.log('No file selected');
+        filenameSpan.textContent = '';
+        filenameSpan.style.display = 'none';
+        dropzone.classList.remove('has-file');
+        if (labelSpan) labelSpan.style.display = '';
+      }
+    }
+    dropzone.addEventListener('click', function(e) {
+      input.click();
+    });
+    dropzone.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        input.click();
+      }
+    });
+    dropzone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', function(e) {
+      dropzone.classList.remove('dragover');
+    });
+    dropzone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length) {
+        input.files = e.dataTransfer.files;
+        var event = new Event('change', { bubbles: true });
+        input.dispatchEvent(event);
+      }
+    });
+    input.addEventListener('change', showFileName);
+    showFileName();
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    setupDropzone('ckpp-font-dropzone', 'ckpp_font_file');
+    setupDropzone('ckpp-clipart-dropzone', 'ckpp_clipart_file');
+  });
+})(); 

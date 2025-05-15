@@ -14,9 +14,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Image placeholders now fully supported: users can upload images that fill and cover the defined area, are always centered, and cannot be moved or resized.
 - Uploading a new image replaces the previous one for that placeholder.
 - All input fields above Add to Cart now use the backend label and have consistent, sanitized names/IDs.
+- All debug panels and console output are now only shown if Debug Mode is enabled in plugin settings.
+- Debug panels are available in both the customizer modal and on the main product page for easy inspection of config and state.
+- This conditional debug output applies across all JavaScript and PHP debug code in the plugin.
+- All major PHP classes and methods now have PHPDoc comments for maintainability and developer experience.
+- FAQ section added to the readme with common troubleshooting and usage questions.
+- SECURITY.md file added with responsible disclosure policy and security best practices.
+- Contributor and security guidance added to the readme.
+
+### Changed
+- Major recovery: Restored all plugin files from MerlinStacks/productdesigner GitHub repository for a clean, working setup. Re-initialized version control.
+- Completed a full performance and dependency audit: assets are only loaded when needed, no unused dependencies, and all queries are optimized.
+- Finalized accessibility and internationalization audit: all user-facing strings are translatable and accessibility best practices are followed.
+- Documentation improvements and polish throughout the codebase and readme.
+- Major admin UI color update: All blue accents replaced with gold (#fec610) for a more modern, branded look.
+- Clipart section now displays as a responsive grid gallery (max 8 columns, fixed card size) instead of a table.
+- Clipart cards feature a larger image preview, compact meta info, and a new accessible delete icon (red outline circle with an 'x', fills on hover).
+- Delete icon now overlaps the image in the top-right corner for better UX.
+- Tag filter added above the clipart grid for easy filtering by tag.
+- Improved accessibility and keyboard navigation for all admin UI controls.
+- Numerous spacing, alignment, and visual polish improvements throughout the admin interface.
 
 ### Fixed
 - Numerous bug fixes and UX improvements for live preview and input validation.
+- Enforced nonce check on the `ckpp_get_product_config` AJAX endpoint to prevent unauthorized access. All AJAX and admin actions now follow WordPress security best practices.
+- Fixed: Personalization validation and required field enforcement now works reliably for both block and classic WooCommerce themes. The plugin now detects and parses CKPP_LIVE_PREVIEW_CONFIG for compatibility with block themes.
+
+---
+
+## [1.1.0] - 2024-06-08
+
+### Added
+- Layers panel now supports drag-and-drop reordering. The top of the list is the topmost (frontmost) object on the canvas.
+- Keyboard accessibility: You can now delete the selected object using the Delete or Backspace key, in line with accessibility standards.
+- New objects (text, image, shape) are always robustly centered on the canvas using Fabric.js's `centerObject` method, regardless of zoom or pan.
+- Image placeholders now fully supported: users can upload images that fill and cover the defined area, are always centered, and cannot be moved or resized.
+- Uploading a new image replaces the previous one for that placeholder.
+- All input fields above Add to Cart now use the backend label and have consistent, sanitized names/IDs.
+
+### Fixed
+- Numerous bug fixes and UX improvements for live preview and input validation.
+
+### Changed
+- Major recovery: Restored all plugin files from MerlinStacks/productdesigner GitHub repository for a clean, working setup. Re-initialized version control.
+
+---
 
 ## [1.0.0] - 2024-06-07
 
@@ -72,6 +114,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.0.1] - Project Initialization
+- Initial plugin structure created.
+- Added main plugin file with header and author attribution.
+- Added Readme.md with installation instructions.
+
 ## Remaining MVP Tasks
 
 ### Admin Designer
@@ -94,14 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Internationalization testing and .pot file generation.
 - [ ] Final documentation polish and FAQ.
 
-## [0.0.1] - Project Initialization
-- Initial plugin structure created.
-- Added main plugin file with header and author attribution.
-- Added Readme.md with installation instructions.
-
-## [Unreleased]
-
-### Admin Designer Improvements
+## Admin Designer Improvements
 - Layers panel now supports drag-and-drop reordering. The top of the list is the topmost (frontmost) object on the canvas.
 - Improved accessibility: You can now delete the selected object using the Delete or Backspace key, in line with accessibility standards.
 - New objects (text, image, shape) are always robustly centered on the canvas using Fabric.js's `centerObject` method, regardless of zoom or pan. 

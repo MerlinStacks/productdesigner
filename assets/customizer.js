@@ -3,6 +3,15 @@
     let config = null;
     let modal = null;
     let lastFocused = null;
+    // Ensure CKPP_LIVE_CONFIG is set from CKPP_LIVE_PREVIEW_CONFIG if present
+    if (window.CKPP_LIVE_PREVIEW_CONFIG && !window.CKPP_LIVE_CONFIG) {
+        try {
+            window.CKPP_LIVE_CONFIG = JSON.parse(window.CKPP_LIVE_PREVIEW_CONFIG);
+        } catch (e) {
+            window.CKPP_LIVE_CONFIG = null;
+            if (window.CKPP_DEBUG_MODE) console.error('[CKPP] Failed to parse CKPP_LIVE_PREVIEW_CONFIG', e);
+        }
+    }
     $(document).ready(function() {
         const btn = document.getElementById('ckpp-personalize-btn');
         if (!btn) return;
@@ -10,6 +19,61 @@
             lastFocused = document.activeElement;
             openCustomizer();
         });
+        // Attach Add to Cart submit handler for inline personalization (classic and block themes)
+        const addToCartForm = document.querySelector('form.cart');
+        const addToCartBtn = document.querySelector('form.cart button[type="submit"], form.cart input[type="submit"]');
+        if (addToCartForm) {
+            // Submit handler (form)
+            addToCartForm.addEventListener('submit', function(e) {
+                var validation = ckppValidateRequiredFieldsInline();
+                if (!validation.allFilled) {
+                    var container = document.getElementById('ckpp-text-inputs-container');
+                    var errorDiv = document.getElementById('ckpp-inline-error');
+                    if (!errorDiv && container) {
+                        errorDiv = document.createElement('div');
+                        errorDiv.id = 'ckpp-inline-error';
+                        errorDiv.style.color = '#b32d2e';
+                        errorDiv.style.marginTop = '1em';
+                        errorDiv.setAttribute('role', 'alert');
+                        errorDiv.setAttribute('aria-live', 'assertive');
+                        container.appendChild(errorDiv);
+                    }
+                    if (errorDiv) errorDiv.textContent = 'Please fill out all required fields' + (validation.firstError ? (': ' + validation.firstError) : '.');
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    if (window.CKPP_DEBUG_MODE) console.warn('[CKPP] Blocked Add to Cart (submit): missing required field', validation.firstError);
+                    return false;
+                } else if (errorDiv) {
+                    errorDiv.textContent = '';
+                }
+            }, true);
+        }
+        // Click handler (button) for block themes and AJAX
+        if (addToCartBtn) {
+            addToCartBtn.addEventListener('click', function(e) {
+                var validation = ckppValidateRequiredFieldsInline();
+                if (!validation.allFilled) {
+                    var container = document.getElementById('ckpp-text-inputs-container');
+                    var errorDiv = document.getElementById('ckpp-inline-error');
+                    if (!errorDiv && container) {
+                        errorDiv = document.createElement('div');
+                        errorDiv.id = 'ckpp-inline-error';
+                        errorDiv.style.color = '#b32d2e';
+                        errorDiv.style.marginTop = '1em';
+                        errorDiv.setAttribute('role', 'alert');
+                        errorDiv.setAttribute('aria-live', 'assertive');
+                        container.appendChild(errorDiv);
+                    }
+                    if (errorDiv) errorDiv.textContent = 'Please fill out all required fields' + (validation.firstError ? (': ' + validation.firstError) : '.');
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    if (window.CKPP_DEBUG_MODE) console.warn('[CKPP] Blocked Add to Cart (click): missing required field', validation.firstError);
+                    return false;
+                } else if (errorDiv) {
+                    errorDiv.textContent = '';
+                }
+            }, true);
+        }
     });
     function openCustomizer() {
         modal = document.getElementById('ckpp-customizer-modal');
@@ -20,7 +84,6 @@
             '<div id="ckpp-customizer-loading" style="display:none;text-align:center;margin:2em 0;">' + CKPPCustomizer.loading + '</div>' +
             '<form id="ckpp-customizer-form" aria-labelledby="ckpp-customizer-title"></form>' +
             '<div id="ckpp-customizer-preview" style="margin-top:2em;"></div>' +
-            '<button id="ckpp-customizer-apply" class="button button-primary" style="margin-top:2em;">' + CKPPCustomizer.applyLabel + '</button>' +
             '<div id="ckpp-customizer-error" style="color:#b32d2e;margin-top:1em;display:none;"></div>' +
             '</div></div>';
         modal.style.display = 'block';
@@ -31,6 +94,13 @@
             if (e.key === 'Escape') closeCustomizer();
         };
         setTimeout(function() { document.getElementById('ckpp-customizer-window').focus(); }, 100);
+        // Attach Add to Cart form submit handler while modal is open
+        const addToCartForm = document.querySelector('form.cart');
+        if (addToCartForm) {
+            // Remove any previous handler to avoid duplicates
+            addToCartForm.removeEventListener('submit', ckppHandleModalAddToCartSubmit, true);
+            addToCartForm.addEventListener('submit', ckppHandleModalAddToCartSubmit, true);
+        }
     }
     function closeCustomizer() {
         modal.style.display = 'none';
@@ -71,29 +141,40 @@
         }
         let html = '';
         config.objects.forEach(function(obj, idx) {
+            // Required indicator and ARIA
+            const isRequired = !!obj.required;
+            const requiredMark = isRequired ? ' <span class="ckpp-required" aria-hidden="true">*</span><span class="screen-reader-text">' + CKPPCustomizer.requiredLabel + '</span>' : '';
+            const ariaRequired = isRequired ? ' aria-required="true" required' : '';
+            // Text input
             if (obj.type === 'i-text') {
-                html += '<label for="ckpp-input-text-' + idx + '">' + CKPPCustomizer.textLabel.replace('%d', idx+1) + '</label> ' +
-                    '<input type="text" id="ckpp-input-text-' + idx + '" name="text_' + idx + '" value="' + (obj.text || '') + '" aria-required="true" /><br/>';
+                html += '<label for="ckpp-input-text-' + idx + '">' +
+                    (obj.label || CKPPCustomizer.textLabel.replace('%d', idx+1)) + requiredMark + '</label>' +
+                    '<input type="text" id="ckpp-input-text-' + idx + '" name="text_' + idx + '" value="' + (obj.text || '') + '"' + ariaRequired + ' autocomplete="off" />';
             }
+            // Textarea
             if (obj.type === 'textbox') {
-                html += '<label for="ckpp-input-textbox-' + idx + '">' + (obj.label || ('Text Box ' + (idx+1))) + '</label> ' +
-                    '<textarea id="ckpp-input-textbox-' + idx + '" name="textbox_' + idx + '" rows="2" style="width:100%;resize:vertical;" aria-required="true">' + (obj.text || '') + '</textarea><br/>';
+                html += '<label for="ckpp-input-textbox-' + idx + '">' +
+                    (obj.label || (CKPPCustomizer.textboxLabel ? CKPPCustomizer.textboxLabel.replace('%d', idx+1) : ('Text Box ' + (idx+1)))) + requiredMark + '</label>' +
+                    '<textarea id="ckpp-input-textbox-' + idx + '" name="textbox_' + idx + '" rows="2" style="width:100%;resize:vertical;"' + ariaRequired + '>' + (obj.text || '') + '</textarea>';
             }
-            if (obj.placeholderType === 'dropdown' && obj.options) {
-                html += '<label for="ckpp-input-dropdown-' + idx + '">' + (obj.label || 'Dropdown') + '</label> ';
-                html += '<select id="ckpp-input-dropdown-' + idx + '" name="dropdown_' + idx + '">';
-                obj.options.forEach(function(opt) {
-                    html += '<option value="' + opt + '">' + opt + '</option>';
-                });
-                html += '</select><br/>';
-            }
+            // Image upload
             if (obj.placeholderType === 'image') {
-                html += '<label for="ckpp-input-image-' + idx + '">' + (obj.label || 'Image Upload') + '</label> ';
-                html += '<input type="file" id="ckpp-input-image-' + idx + '" name="image_' + idx + '" accept="image/*" /><br/>';
-                html += '<img id="ckpp-image-preview-' + idx + '" src="" alt="Image preview" style="display:none;max-width:120px;max-height:80px;margin-top:0.5em;" />';
+                html += '<label for="ckpp-input-image-' + idx + '">' +
+                    (obj.label || CKPPCustomizer.imageLabel || 'Image Upload') + requiredMark + '</label>' +
+                    '<input type="file" id="ckpp-input-image-' + idx + '" name="image_' + idx + '" accept="image/*"' + ariaRequired + ' aria-describedby="ckpp-image-desc-' + idx + '" />' +
+                    '<span id="ckpp-image-desc-' + idx + '" class="screen-reader-text">' + CKPPCustomizer.imageInstructions + '</span>' +
+                    '<img id="ckpp-image-preview-' + idx + '" src="" alt="' + CKPPCustomizer.imagePreviewAlt + '" style="display:none;max-width:120px;max-height:80px;margin-top:0.5em;" />';
             }
+            // Add spacing between fields
+            html += '<div class="ckpp-field-spacer"></div>';
         });
         form.innerHTML = html;
+        // Set ARIA live region for error
+        const errorDiv = document.getElementById('ckpp-customizer-error');
+        if (errorDiv) {
+            errorDiv.setAttribute('aria-live', 'assertive');
+            errorDiv.setAttribute('role', 'alert');
+        }
         form.oninput = renderPreview;
         form.onchange = function(e) {
             // Image preview logic
@@ -117,10 +198,18 @@
             });
             renderPreview();
         };
-        document.getElementById('ckpp-customizer-apply').onclick = function(e) {
-            e.preventDefault();
-            savePersonalization();
-        };
+        // Debug panel: show config as JSON
+        if (window.CKPP_DEBUG_MODE) {
+            const debugPanel = document.createElement('pre');
+            debugPanel.style.background = '#f8f8f8';
+            debugPanel.style.border = '1px solid #ccc';
+            debugPanel.style.padding = '1em';
+            debugPanel.style.marginTop = '1em';
+            debugPanel.style.fontSize = '12px';
+            debugPanel.style.overflowX = 'auto';
+            debugPanel.textContent = JSON.stringify(config, null, 2);
+            document.getElementById('ckpp-customizer-window').appendChild(debugPanel);
+        }
     }
     function renderPreview() {
         const previewDiv = document.getElementById('ckpp-customizer-preview');
@@ -177,11 +266,6 @@
                             }
                         }
                     }
-                    if (obj.placeholderType === 'dropdown') {
-                        const val = form['dropdown_' + idx] ? form['dropdown_' + idx].value : (obj.options ? obj.options[0] : '');
-                        fabricCanvas.item(idx).set('fill', '#e0e0e0');
-                        fabricCanvas.item(idx).set('text', val);
-                    }
                     if (obj.placeholderType === 'image') {
                         const previewImg = document.getElementById('ckpp-image-preview-' + idx);
                         if (previewImg && previewImg.src && previewImg.style.display !== 'none') {
@@ -230,9 +314,6 @@
             }
             if (obj.type === 'textbox') {
                 data['textbox_' + idx] = form['textbox_' + idx] ? form['textbox_' + idx].value : '';
-            }
-            if (obj.placeholderType === 'dropdown') {
-                data['dropdown_' + idx] = form['dropdown_' + idx] ? form['dropdown_' + idx].value : '';
             }
             if (obj.placeholderType === 'image') {
                 const fileInput = form['image_' + idx];
@@ -463,7 +544,7 @@
         // Responsive: re-render on window resize
         window.addEventListener('resize', resizeAndRender);
     }
-    // Insert text input boxes above Add to Cart for each text object and text box
+    // Insert text input boxes above Add to Cart for each text object and text box and image placeholder
     function insertTextInputsAboveAddToCart(config) {
         var addToCartBtn = document.querySelector('form.cart button[type="submit"], form.cart input[type="submit"]');
         if (!addToCartBtn) return;
@@ -485,6 +566,8 @@
             var idx = pair.idx;
             // Use label from backend config, fallback to sensible default
             var rawLabel = obj.label || (obj.type === 'i-text' ? 'Text ' + (idx+1) : obj.type === 'textbox' ? 'Text Box ' + (idx+1) : obj.placeholderType === 'image' ? 'Image Upload' : 'Field ' + (idx+1));
+            // Add required indicator if needed
+            var labelText = rawLabel + (obj.required ? ' *' : '');
             // Sanitize label for use in name/id: lowercase, dashes, alphanumeric only
             var sanitizedLabel = rawLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
             var inputId, inputName;
@@ -500,7 +583,7 @@
             }
             var label = document.createElement('label');
             label.setAttribute('for', inputId);
-            label.textContent = rawLabel + ':';
+            label.textContent = labelText + ':';
             label.style.display = 'block';
             label.style.fontWeight = 'bold';
             label.style.marginBottom = '0.2em';
@@ -511,7 +594,7 @@
                 input.id = inputId;
                 input.name = inputName;
                 input.value = obj.text || '';
-                input.setAttribute('aria-required', 'true');
+                if (obj.required) input.setAttribute('aria-required', 'true');
                 input.style.width = '100%';
                 input.style.marginBottom = '0.7em';
                 input.setAttribute('autocomplete', 'off');
@@ -534,7 +617,7 @@
                 textarea.id = inputId;
                 textarea.name = inputName;
                 textarea.value = obj.text || '';
-                textarea.setAttribute('aria-required', 'true');
+                if (obj.required) textarea.setAttribute('aria-required', 'true');
                 textarea.setAttribute('rows', '2');
                 textarea.style.width = '100%';
                 textarea.style.resize = 'vertical';
@@ -559,7 +642,7 @@
                 fileInput.id = inputId;
                 fileInput.name = inputName;
                 fileInput.accept = 'image/*';
-                fileInput.setAttribute('aria-required', 'true');
+                if (obj.required) fileInput.setAttribute('aria-required', 'true');
                 fileInput.style.marginBottom = '0.7em';
                 var previewImg = document.createElement('img');
                 previewImg.id = 'ckpp-image-preview-' + sanitizedLabel + '-' + idx;
@@ -655,24 +738,21 @@
     function validateTextInputs() {
         var container = document.getElementById('ckpp-text-inputs-container');
         if (!container) return;
-        var textInputs = container.querySelectorAll('input[type="text"]');
-        var textareas = container.querySelectorAll('textarea');
-        var fileInputs = container.querySelectorAll('input[type="file"]');
-        var allFilled = true;
-        textInputs.forEach(function(input) {
-            if (!input.value.trim()) allFilled = false;
-        });
-        textareas.forEach(function(textarea) {
-            if (!textarea.value.trim()) allFilled = false;
-        });
-        fileInputs.forEach(function(fileInput) {
-            var idx = fileInput.id.split('-').pop();
-            var previewImg = document.getElementById('ckpp-image-preview-' + idx);
-            if (!previewImg || !previewImg.src || previewImg.style.display === 'none') allFilled = false;
-        });
         var addToCartBtn = document.querySelector('form.cart button[type="submit"], form.cart input[type="submit"]');
+        var validation = ckppValidateRequiredFieldsInline();
+        
+        // Debug output if debug mode is enabled
+        if (window.CKPP_DEBUG_MODE) {
+            console.log('[CKPP] Validation result:', validation);
+            console.log('[CKPP] Required fields status:', validation.allFilled ? 'FILLED' : 'NOT FILLED');
+            if (validation.firstError) {
+                console.log('[CKPP] First error:', validation.firstError);
+            }
+        }
+        
         if (addToCartBtn) {
-            addToCartBtn.disabled = !allFilled;
+            // Only enable the button if all required fields are filled
+            addToCartBtn.disabled = !validation.allFilled;
         }
     }
     // Move and show live preview only if a gallery container is found
@@ -698,4 +778,248 @@
         // If neither found, leave preview hidden
     }
     $(document).ready(placeLivePreviewDiv);
+    // Example for debug panel on main product page:
+    if (window.CKPP_DEBUG_MODE && window.CKPP_LIVE_CONFIG) {
+        var debugPanel = document.createElement('pre');
+        debugPanel.style.background = '#f8f8f8';
+        debugPanel.style.border = '1px solid #ccc';
+        debugPanel.style.padding = '1em';
+        debugPanel.style.marginTop = '1em';
+        debugPanel.style.fontSize = '12px';
+        debugPanel.style.overflowX = 'auto';
+        debugPanel.textContent = JSON.stringify(window.CKPP_LIVE_CONFIG, null, 2);
+        var addToCartBtn = document.querySelector('form.cart button[type="submit"], form.cart input[type="submit"]');
+        if (addToCartBtn) {
+            var form = addToCartBtn.closest('form.cart');
+            if (form) form.appendChild(debugPanel);
+        }
+    }
+    // Handler for Add to Cart submit when modal is open
+    function ckppHandleModalAddToCartSubmit(e) {
+        const form = document.getElementById('ckpp-customizer-form');
+        let allFilled = true;
+        let firstError = null;
+        if (config && config.objects) {
+            config.objects.forEach(function(obj, idx) {
+                if (obj.required) {
+                    if (obj.type === 'i-text') {
+                        const input = form['text_' + idx];
+                        if (!input || !input.value.trim()) {
+                            allFilled = false;
+                            if (!firstError) firstError = obj.label || 'Text ' + (idx+1);
+                        }
+                    } else if (obj.type === 'textbox') {
+                        const textarea = form['textbox_' + idx];
+                        if (!textarea || !textarea.value.trim()) {
+                            allFilled = false;
+                            if (!firstError) firstError = obj.label || 'Text Box ' + (idx+1);
+                        }
+                    } else if (obj.placeholderType === 'image') {
+                        const fileInput = form['image_' + idx];
+                        const previewImg = document.getElementById('ckpp-image-preview-' + idx);
+                        if (!fileInput || !previewImg || !previewImg.src || previewImg.style.display === 'none') {
+                            allFilled = false;
+                            if (!firstError) firstError = obj.label || 'Image Upload';
+                        }
+                    }
+                }
+            });
+        }
+        if (!allFilled) {
+            const err = document.getElementById('ckpp-customizer-error');
+            err.textContent = 'Please fill out all required fields' + (firstError ? (': ' + firstError) : '.');
+            err.style.display = 'block';
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
+        } else {
+            document.getElementById('ckpp-customizer-error').style.display = 'none';
+        }
+        // Save personalization data as hidden input
+        const data = {};
+        config.objects.forEach(function(obj, idx) {
+            if (obj.type === 'i-text') {
+                data['text_' + idx] = form['text_' + idx] ? form['text_' + idx].value : '';
+            }
+            if (obj.type === 'textbox') {
+                data['textbox_' + idx] = form['textbox_' + idx] ? form['textbox_' + idx].value : '';
+            }
+            if (obj.placeholderType === 'image') {
+                const fileInput = form['image_' + idx];
+                if (fileInput && fileInput.files && fileInput.files[0]) {
+                    // Synchronous: just note that image will be handled by backend or elsewhere
+                    data['image_' + idx] = fileInput.value ? fileInput.value : '';
+                } else {
+                    data['image_' + idx] = '';
+                }
+            }
+        });
+        let input = e.target.querySelector('input[name="ckpp_personalization_data"]');
+        if (!input) {
+            input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'ckpp_personalization_data';
+            e.target.appendChild(input);
+        }
+        input.value = JSON.stringify(data);
+        // Allow form to submit
+        closeCustomizer();
+    }
+    // Validate required fields for inline personalization
+    function ckppValidateRequiredFieldsInline() {
+        var container = document.getElementById('ckpp-text-inputs-container');
+        var errorDiv = document.getElementById('ckpp-inline-error');
+        var config = window.CKPP_LIVE_CONFIG;
+        var allFilled = true;
+        var firstError = null;
+        var requiredFieldCount = 0;
+        
+        if (!config || !config.objects) {
+            allFilled = false;
+            firstError = 'Personalization configuration missing. Please refresh the page.';
+            if (window.CKPP_DEBUG_MODE) {
+                console.error('[CKPP] No config found during validation');
+            }
+        } else {
+            if (window.CKPP_DEBUG_MODE) {
+                console.log('[CKPP] Validating with config:', config);
+            }
+            
+            var inputObjs = (config.objects || []).map(function(obj, idx) { return {obj, idx}; }).filter(function(pair) {
+                return pair.obj.type === 'i-text' || pair.obj.type === 'textbox' || pair.obj.placeholderType === 'image';
+            });
+            
+            // Debug: Count total fields and required fields
+            if (window.CKPP_DEBUG_MODE) {
+                console.log('[CKPP] Total input fields:', inputObjs.length);
+                var requiredFields = inputObjs.filter(function(pair) {
+                    return pair.obj.required === true;
+                });
+                console.log('[CKPP] Required fields:', requiredFields.length, requiredFields.map(function(pair) {
+                    return pair.obj.label || 'Field ' + pair.idx;
+                }));
+            }
+            
+            inputObjs.forEach(function(pair) {
+                var obj = pair.obj;
+                var idx = pair.idx;
+                
+                // Skip validation entirely if the field is not explicitly required
+                if (obj.required !== true) {
+                    if (window.CKPP_DEBUG_MODE) {
+                        console.log('[CKPP] Field not required, skipping validation:', obj.label || 'Field ' + idx);
+                    }
+                    return;
+                }
+                
+                // Count required fields for debugging
+                requiredFieldCount++;
+                
+                var rawLabel = obj.label || (obj.type === 'i-text' ? 'Text ' + (idx+1) : obj.type === 'textbox' ? 'Text Box ' + (idx+1) : obj.placeholderType === 'image' ? 'Image Upload' : 'Field ' + (idx+1));
+                var sanitizedLabel = rawLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                var inputId;
+                
+                if (obj.type === 'i-text') {
+                    inputId = 'ckpp-text-input-' + sanitizedLabel + '-' + idx;
+                    var input = document.getElementById(inputId);
+                    var value = input ? input.value.trim() : '';
+                    if (!input || !value) {
+                        allFilled = false;
+                        if (!firstError) firstError = rawLabel;
+                        if (window.CKPP_DEBUG_MODE) {
+                            console.warn('[CKPP] Required text field empty:', rawLabel, inputId);
+                        }
+                    } else if (window.CKPP_DEBUG_MODE) {
+                        console.log('[CKPP] Required text field filled:', rawLabel, inputId, value);
+                    }
+                } else if (obj.type === 'textbox') {
+                    inputId = 'ckpp-textarea-input-' + sanitizedLabel + '-' + idx;
+                    var textarea = document.getElementById(inputId);
+                    var value = textarea ? textarea.value.trim() : '';
+                    if (!textarea || !value) {
+                        allFilled = false;
+                        if (!firstError) firstError = rawLabel;
+                        if (window.CKPP_DEBUG_MODE) {
+                            console.warn('[CKPP] Required textarea empty:', rawLabel, inputId);
+                        }
+                    } else if (window.CKPP_DEBUG_MODE) {
+                        console.log('[CKPP] Required textarea filled:', rawLabel, inputId, value);
+                    }
+                } else if (obj.placeholderType === 'image') {
+                    inputId = 'ckpp-image-input-' + sanitizedLabel + '-' + idx;
+                    var fileInput = document.getElementById(inputId);
+                    var previewImg = document.getElementById('ckpp-image-preview-' + sanitizedLabel + '-' + idx);
+                    if (!fileInput || !previewImg || !previewImg.src || previewImg.style.display === 'none') {
+                        allFilled = false;
+                        if (!firstError) firstError = rawLabel;
+                        if (window.CKPP_DEBUG_MODE) {
+                            console.warn('[CKPP] Required image missing:', rawLabel, inputId);
+                        }
+                    } else if (window.CKPP_DEBUG_MODE) {
+                        console.log('[CKPP] Required image uploaded:', rawLabel, inputId);
+                    }
+                }
+            });
+        }
+        
+        // Final debug info
+        if (window.CKPP_DEBUG_MODE) {
+            console.log('[CKPP] Validation complete - Required fields:', requiredFieldCount, 'All filled:', allFilled);
+        }
+        
+        // Special case: if there are no required fields, always return true
+        if (requiredFieldCount === 0) {
+            if (window.CKPP_DEBUG_MODE) {
+                console.log('[CKPP] No required fields found, allowing Add to Cart');
+            }
+            allFilled = true;
+            firstError = null;
+        }
+        
+        return { allFilled, firstError };
+    }
+    // WooCommerce Blocks: Add personalization data to AJAX Add to Cart
+    // This ensures ckpp_personalization_data is sent with block theme AJAX requests
+    if (typeof window !== 'undefined') {
+        document.addEventListener('wc-blocks_add_to_cart_form_data', function(e) {
+            // e.detail.form is the form element
+            // e.detail.data is the data array to be sent
+            var form = e.detail && e.detail.form;
+            if (!form) return;
+            var input = form.querySelector('input[name="ckpp_personalization_data"]');
+            if (input && input.value) {
+                e.detail.data.push({
+                    name: 'ckpp_personalization_data',
+                    value: input.value
+                });
+                if (window.CKPP_DEBUG_MODE) {
+                    console.log('[CKPP] Added personalization data to block AJAX:', input.value);
+                }
+            }
+        });
+    }
+    // Universal: Intercept all WooCommerce AJAX Add to Cart requests and inject personalization data (XHR version)
+    (function() {
+        var origOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function() {
+            this._ckpp_is_wc_add_to_cart = arguments[1] && arguments[1].includes('wc-ajax=add_to_cart');
+            return origOpen.apply(this, arguments);
+        };
+        var origSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function(body) {
+            if (this._ckpp_is_wc_add_to_cart && typeof body === 'string') {
+                var form = document.querySelector('form.cart');
+                if (form) {
+                    var input = form.querySelector('input[name="ckpp_personalization_data"]');
+                    if (input && input.value && !body.includes('ckpp_personalization_data=')) {
+                        body += '&ckpp_personalization_data=' + encodeURIComponent(input.value);
+                        if (window.CKPP_DEBUG_MODE) {
+                            console.log('[CKPP] Injected personalization data into XHR:', input.value);
+                        }
+                    }
+                }
+            }
+            return origSend.call(this, body);
+        };
+    })();
 })(jQuery); 

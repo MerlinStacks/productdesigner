@@ -13,6 +13,7 @@ class CKPP_Admin_UI {
     public function __construct() {
         add_action( 'admin_menu', [ $this, 'register_menu' ] );
         add_action( 'admin_init', [ $this, 'register_settings' ] );
+        add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_styles' ] );
         if ( is_admin() ) {
             add_action( 'wp_ajax_ckpp_get_assignments', [ $this, 'ajax_get_assignments' ] );
             add_action( 'wp_ajax_ckpp_save_assignment', [ $this, 'ajax_save_assignment' ] );
@@ -127,21 +128,24 @@ class CKPP_Admin_UI {
             echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $msg ) . '</p></div>';
         }
         ?>
-        <h2><?php esc_html_e( 'Fonts', 'customkings' ); ?></h2>
-        <form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+        <form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ckpp-upload-form">
             <?php wp_nonce_field( 'ckpp_upload_font' ); ?>
             <input type="hidden" name="action" value="ckpp_upload_font" />
-            <table class="form-table" role="presentation">
-                <tr>
-                    <th scope="row"><label for="ckpp_font_name"><?php esc_html_e( 'Font Name', 'customkings' ); ?></label></th>
-                    <td><input type="text" name="ckpp_font_name" id="ckpp_font_name" required class="regular-text" /></td>
-                </tr>
-                <tr>
-                    <th scope="row"><label for="ckpp_font_file"><?php esc_html_e( 'Font File', 'customkings' ); ?></label></th>
-                    <td><input type="file" name="ckpp_font_file" id="ckpp_font_file" accept=".ttf,.otf,.woff,.woff2" required /></td>
-                </tr>
-            </table>
-            <?php submit_button( __( 'Upload Font', 'customkings' ) ); ?>
+            <div class="ckpp-inline-form-row">
+                <div class="form-control">
+                    <label for="ckpp_font_name" class="screen-reader-text"><?php esc_html_e( 'Font Name', 'customkings' ); ?></label>
+                    <input type="text" name="ckpp_font_name" id="ckpp_font_name" required class="regular-text" placeholder="<?php esc_attr_e('Font Name', 'customkings'); ?>" />
+                </div>
+                <div class="form-control" style="flex:2;min-width:180px;position:relative;">
+                    <label class="ckpp-upload-dropzone" id="ckpp-font-dropzone" for="ckpp_font_file">
+                        <span class="ckpp-upload-icon dashicons dashicons-upload"></span>
+                        <span class="ckpp-upload-label"><?php esc_html_e('Drag & drop font file here, or click to select', 'customkings'); ?></span>
+                        <span class="ckpp-upload-filename"></span>
+                    </label>
+                    <input type="file" name="ckpp_font_file" id="ckpp_font_file" accept=".ttf,.otf,.woff,.woff2" required style="opacity:0;position:absolute;pointer-events:auto;width:100%;height:100%;left:0;top:0;" />
+                </div>
+                <button type="submit" class="ckpp-upload-btn"><span class="dashicons dashicons-upload"></span><?php esc_html_e( 'Upload Font', 'customkings' ); ?></button>
+            </div>
         </form>
         <hr />
         <h3><?php esc_html_e( 'Uploaded Fonts', 'customkings' ); ?></h3>
@@ -207,69 +211,97 @@ class CKPP_Admin_UI {
             echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $msg ) . '</p></div>';
         }
         ?>
-        <h2><?php esc_html_e( 'Clipart', 'customkings' ); ?></h2>
-        <form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+        <form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ckpp-upload-form">
             <?php wp_nonce_field( 'ckpp_upload_clipart' ); ?>
             <input type="hidden" name="action" value="ckpp_upload_clipart" />
-            <table class="form-table" role="presentation">
-                <tr>
-                    <th scope="row"><label for="ckpp_clipart_name"><?php esc_html_e( 'Clipart Name', 'customkings' ); ?></label></th>
-                    <td><input type="text" name="ckpp_clipart_name" id="ckpp_clipart_name" required class="regular-text" /></td>
-                </tr>
-                <tr>
-                    <th scope="row"><label for="ckpp_clipart_file"><?php esc_html_e( 'Clipart File', 'customkings' ); ?></label></th>
-                    <td><input type="file" name="ckpp_clipart_file" id="ckpp_clipart_file" accept=".svg,.png" required /></td>
-                </tr>
-                <tr>
-                    <th scope="row"><label for="ckpp_clipart_tags"><?php esc_html_e( 'Tags (comma separated)', 'customkings' ); ?></label></th>
-                    <td><input type="text" name="ckpp_clipart_tags" id="ckpp_clipart_tags" class="regular-text" /></td>
-                </tr>
-            </table>
-            <?php submit_button( __( 'Upload Clipart', 'customkings' ) ); ?>
+            <div class="ckpp-inline-form-row">
+                <div class="form-control">
+                    <label for="ckpp_clipart_name" class="screen-reader-text"><?php esc_html_e( 'Clipart Name', 'customkings' ); ?></label>
+                    <input type="text" name="ckpp_clipart_name" id="ckpp_clipart_name" required class="regular-text" placeholder="<?php esc_attr_e('Clipart Name', 'customkings'); ?>" />
+                </div>
+                <div class="form-control" style="flex:2;min-width:180px;position:relative;">
+                    <label class="ckpp-upload-dropzone" id="ckpp-clipart-dropzone" for="ckpp_clipart_file">
+                        <span class="ckpp-upload-icon dashicons dashicons-upload"></span>
+                        <span class="ckpp-upload-label"><?php esc_html_e('Drag & drop clipart file here, or click to select', 'customkings'); ?></span>
+                        <span class="ckpp-upload-filename"></span>
+                    </label>
+                    <input type="file" name="ckpp_clipart_file" id="ckpp_clipart_file" accept=".svg,.png,.jpg,.jpeg,.gif,.webp,image/*" required style="opacity:0;position:absolute;pointer-events:auto;width:100%;height:100%;left:0;top:0;" />
+                </div>
+                <div class="form-control">
+                    <label for="ckpp_clipart_tags" class="screen-reader-text"><?php esc_html_e( 'Tags (comma separated)', 'customkings' ); ?></label>
+                    <input type="text" name="ckpp_clipart_tags" id="ckpp_clipart_tags" class="regular-text" placeholder="<?php esc_attr_e('Tags (comma separated)', 'customkings'); ?>" />
+                </div>
+                <button type="submit" class="ckpp-upload-btn"><span class="dashicons dashicons-upload"></span><?php esc_html_e( 'Upload Clipart', 'customkings' ); ?></button>
+            </div>
         </form>
         <hr />
         <h3><?php esc_html_e( 'Uploaded Clipart', 'customkings' ); ?></h3>
-        <table class="widefat fixed striped">
-            <thead>
-                <tr>
-                    <th><?php esc_html_e( 'Preview', 'customkings' ); ?></th>
-                    <th><?php esc_html_e( 'Name', 'customkings' ); ?></th>
-                    <th><?php esc_html_e( 'Tags', 'customkings' ); ?></th>
-                    <th><?php esc_html_e( 'Actions', 'customkings' ); ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                if ( ! class_exists( 'CKPP_Clipart' ) ) return;
-                $cliparts = CKPP_Clipart::get_clipart();
-                if ( $cliparts ) :
-                    foreach ( $cliparts as $clip ) :
-                        $clip_url = esc_url( $clip->file_url );
-                        $clip_name = esc_html( $clip->name );
-                        $clip_tags = esc_html( $clip->tags );
-                        $clip_id = intval( $clip->id );
-                        ?>
-                        <tr>
-                            <td><?php if ( $clip_url ) echo '<img src="' . $clip_url . '" alt="" style="max-width:48px;max-height:48px;" />'; ?></td>
-                            <td><?php echo $clip_name; ?></td>
-                            <td><?php echo $clip_tags; ?></td>
-                            <td>
-                                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
-                                    <?php wp_nonce_field( 'ckpp_delete_clipart' ); ?>
-                                    <input type="hidden" name="action" value="ckpp_delete_clipart" />
-                                    <input type="hidden" name="clipart_id" value="<?php echo $clip_id; ?>" />
-                                    <button type="submit" class="button button-small delete" onclick="return confirm('<?php echo esc_js( __( 'Delete this clipart?', 'customkings' ) ); ?>');"><?php esc_html_e( 'Delete', 'customkings' ); ?></button>
-                                </form>
-                            </td>
-                        </tr>
-                        <?php
-                    endforeach;
-                else :
-                    echo '<tr><td colspan="4">' . esc_html__( 'No clipart uploaded yet.', 'customkings' ) . '</td></tr>';
-                endif;
-                ?>
-            </tbody>
-        </table>
+        <?php
+        if ( ! class_exists( 'CKPP_Clipart' ) ) return;
+        $cliparts = CKPP_Clipart::get_clipart();
+        // Collect all tags for filter dropdown
+        $all_tags = [];
+        foreach ( $cliparts as $clip ) {
+            $tags = array_filter(array_map('trim', explode(',', $clip->tags)));
+            foreach ( $tags as $tag ) {
+                if ($tag !== '') $all_tags[$tag] = true;
+            }
+        }
+        ksort($all_tags);
+        $selected_tag = isset($_GET['clipart_tag']) ? sanitize_text_field($_GET['clipart_tag']) : '';
+        ?>
+        <form method="get" class="ckpp-clipart-filter-form" style="margin-bottom:1.5em;display:flex;align-items:center;gap:1em;">
+            <?php foreach ($_GET as $k => $v) if ($k !== 'clipart_tag') echo '<input type="hidden" name="'.esc_attr($k).'" value="'.esc_attr($v).'" />'; ?>
+            <label for="ckpp-clipart-tag-filter" style="font-weight:500;">Tag:</label>
+            <select name="clipart_tag" id="ckpp-clipart-tag-filter" onchange="this.form.submit()" style="min-width:120px;">
+                <option value=""><?php esc_html_e('All', 'customkings'); ?></option>
+                <?php foreach ($all_tags as $tag => $_) : ?>
+                    <option value="<?php echo esc_attr($tag); ?>" <?php selected($selected_tag, $tag); ?>><?php echo esc_html($tag); ?></option>
+                <?php endforeach; ?>
+            </select>
+        </form>
+        <div class="ckpp-clipart-grid">
+        <?php
+        $has_clipart = false;
+        foreach ( $cliparts as $clip ) :
+            $clip_url = esc_url( $clip->file_url );
+            $clip_name = esc_html( $clip->name );
+            $clip_tags = esc_html( $clip->tags );
+            $clip_id = intval( $clip->id );
+            $tags = array_filter(array_map('trim', explode(',', $clip->tags)));
+            if ($selected_tag && !in_array($selected_tag, $tags, true)) continue;
+            $has_clipart = true;
+        ?>
+            <div class="ckpp-clipart-card">
+                <div class="ckpp-clipart-thumb">
+                    <?php if ( $clip_url ) echo '<img src="' . $clip_url . '" alt="" style="width:100%;height:100%;object-fit:contain;" />'; ?>
+                    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
+                        <?php wp_nonce_field( 'ckpp_delete_clipart' ); ?>
+                        <input type="hidden" name="action" value="ckpp_delete_clipart" />
+                        <input type="hidden" name="clipart_id" value="<?php echo $clip_id; ?>" />
+                        <button type="submit" class="ckpp-clipart-delete-btn" title="<?php esc_attr_e('Delete this clipart', 'customkings'); ?>" onclick="return confirm('<?php echo esc_js( __( 'Delete this clipart?', 'customkings' ) ); ?>');">
+                            <span class="ckpp-clipart-delete-svg" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" focusable="false" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="9" cy="9" r="8" stroke="#b32d2e" stroke-width="2" fill="none"/>
+                                    <line x1="6" y1="6" x2="12" y2="12" stroke="#b32d2e" stroke-width="2" stroke-linecap="round"/>
+                                    <line x1="12" y1="6" x2="6" y2="12" stroke="#b32d2e" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                            </span>
+                            <span class="screen-reader-text"><?php esc_html_e('Delete', 'customkings'); ?></span>
+                        </button>
+                    </form>
+                </div>
+                <div class="ckpp-clipart-meta">
+                    <div class="ckpp-clipart-name"><?php echo $clip_name; ?></div>
+                    <div class="ckpp-clipart-tags"><?php echo $clip_tags; ?></div>
+                </div>
+            </div>
+        <?php endforeach;
+        if (!$has_clipart) {
+            echo '<div style="padding:2em;text-align:center;color:#888;">' . esc_html__( 'No clipart uploaded yet.', 'customkings' ) . '</div>';
+        }
+        ?>
+        </div>
         <?php
     }
 
@@ -368,5 +400,30 @@ class CKPP_Admin_UI {
         }
         update_post_meta( $product_id, '_ckpp_design_id', $design_id );
         wp_send_json_success();
+    }
+
+    /**
+     * Enqueue custom admin styles for plugin pages.
+     */
+    public function enqueue_admin_styles($hook) {
+        // Only load on plugin admin pages
+        if (
+            isset($_GET['page']) &&
+            strpos($_GET['page'], 'ckpp_') === 0
+        ) {
+            wp_enqueue_style(
+                'ckpp-admin-ui',
+                plugins_url('../assets/admin-ui.css', __FILE__),
+                [],
+                filemtime(dirname(__DIR__) . '/assets/admin-ui.css')
+            );
+            wp_enqueue_script(
+                'ckpp-admin-upload',
+                plugins_url('../assets/admin-order.js', __FILE__),
+                ['jquery'],
+                filemtime(dirname(__DIR__) . '/assets/admin-order.js'),
+                true
+            );
+        }
     }
 } 

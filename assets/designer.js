@@ -82,13 +82,17 @@
                 }
             };
         } else {
-            console.warn('CKPP: Reset Canvas button not found in DOM when trying to attach event handler.');
+            if (window.CKPP_DEBUG_MODE) {
+                console.warn('CKPP: Reset Canvas button not found in DOM when trying to attach event handler.');
+            }
         }
         // Wait for Fabric.js to be loaded
         function initAfterDOM() {
             var canvasEl = document.getElementById('ckpp-canvas');
             if (!canvasEl) {
-                console.error('CKPP: Canvas element not found after HTML injection.');
+                if (window.CKPP_DEBUG_MODE) {
+                    console.error('CKPP: Canvas element not found after HTML injection.');
+                }
                 return;
             }
             if (typeof fabric === 'undefined') {
@@ -139,10 +143,14 @@
                 });
                 fabricCanvas.loadFromJSON(configObj, function() {
                     fabricCanvas.renderAll();
-                    console.log('CKPP: Loaded config into canvas', configObj);
+                    if (window.CKPP_DEBUG_MODE) {
+                        console.log('CKPP: Loaded config into canvas', configObj);
+                    }
                 });
             } catch (e) {
-                console.error('CKPP: Failed to parse/load config', e);
+                if (window.CKPP_DEBUG_MODE) {
+                    console.error('CKPP: Failed to parse/load config', e);
+                }
             }
         }
         // --- Layers Panel Logic ---
@@ -159,7 +167,7 @@
                 var isVisible = obj.visible !== false;
                 var isLocked = obj.lockMovementX && obj.lockMovementY && obj.selectable === false;
                 html += `<div data-layer-idx="${idx}" draggable="true" style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;margin-bottom:4px;border-radius:6px;cursor:pointer;background:${isSelected ? '#ffe9a6' : 'transparent'};border:1px solid ${isSelected ? '#fec610' : 'transparent'};font-size:14px;">
-                  <span style="flex:1;" >${obj.label ? obj.label : (obj.placeholderType ? obj.placeholderType : obj.type)} #${idx+1}</span>
+                  <span style="flex:1;" >${obj.label ? obj.label : (obj.placeholderType ? obj.placeholderType : obj.type)}</span>
                   <span style="display:flex;gap:2px;align-items:center;">
                     <button data-toggle-visible="${idx}" style="font-size:15px;" title="${isVisible ? 'Hide' : 'Show'}">${isVisible ? '👁' : '🚫'}</button>
                     <button data-toggle-lock="${idx}" style="font-size:15px;" title="${isLocked ? 'Unlock' : 'Lock'}">${isLocked ? '🔒' : '🔓'}</button>
@@ -281,10 +289,14 @@
             var html = '';
             var isText = sel.type === 'i-text' || sel.type === 'textbox' || sel.type === 'text';
             var isShape = sel.type === 'rect' || sel.type === 'circle' || sel.type === 'triangle' || sel.type === 'polygon' || sel.type === 'ellipse';
-            if (isText) {
+            if (isText || sel.placeholderType === 'image') {
                 // Name
                 html += `<div style=\"margin-bottom:6px; font-size:15px;\"><b>Name:</b></div>`;
                 html += `<input id=\"ckpp-prop-name\" type=\"text\" value=\"${name.replace(/\"/g, '&quot;')}\" style=\"width:100%; padding:6px 8px; border-radius:6px; border:1px solid #ccc; font-size:15px; margin-bottom:10px;\" />`;
+                // Required checkbox
+                html += `<div style=\"margin-bottom:10px;\"><label><input type=\"checkbox\" id=\"ckpp-prop-required\" ${sel.required ? 'checked' : ''} /> Required</label></div>`;
+            }
+            if (isText) {
                 // Font Family
                 var uploadedFonts = [];
                 var fontsDataDiv = document.getElementById('ckpp-fonts-data');
@@ -428,10 +440,14 @@
                             document.fonts.load('16px "' + customFont.name + '"').then(function() {
                                 fabricCanvas.requestRenderAll();
                                 fabricCanvas.fire('object:modified', { target: sel });
-                                console.log('CKPP: Forced save after custom font loaded');
+                                if (window.CKPP_DEBUG_MODE) {
+                                    console.log('CKPP: Forced save after custom font loaded');
+                                }
                                 if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
                             }).catch(function(err) {
-                                console.error('CKPP: Failed to load custom font', customFont.name, err);
+                                if (window.CKPP_DEBUG_MODE) {
+                                    console.error('CKPP: Failed to load custom font', customFont.name, err);
+                                }
                                 fabricCanvas.requestRenderAll();
                                 fabricCanvas.fire('object:modified', { target: sel });
                                 if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
@@ -537,6 +553,15 @@
                     };
                 }
             }
+            // Required checkbox
+            var requiredInput = document.getElementById('ckpp-prop-required');
+            if (requiredInput) {
+                requiredInput.onchange = function() {
+                    sel.required = requiredInput.checked;
+                    fabricCanvas.requestRenderAll();
+                    fabricCanvas.fire('object:modified', { target: sel });
+                };
+            }
         }
         fabricCanvas.on('selection:created', updatePropertiesPanel);
         fabricCanvas.on('selection:updated', updatePropertiesPanel);
@@ -556,7 +581,12 @@
             if (toolAddText) toolAddText.onclick = function() {
                 if (window.ckppFabricCanvas) {
                     var canvas = window.ckppFabricCanvas;
-                    var text = new fabric.IText('Text', { fontSize: 24, fill: '#222222' });
+                    // Count existing text objects for unique naming
+                    var count = canvas.getObjects().filter(function(obj) {
+                        return obj.type === 'i-text' || obj.type === 'textbox' || obj.type === 'text';
+                    }).length + 1;
+                    var label = 'Text ' + count;
+                    var text = new fabric.IText('Text', { fontSize: 24, fill: '#222222', label: label });
                     canvas.add(text);
                     canvas.centerObject(text);
                     text.setCoords();
@@ -567,6 +597,11 @@
             if (toolAddTextbox) toolAddTextbox.onclick = function() {
                 if (window.ckppFabricCanvas) {
                     var canvas = window.ckppFabricCanvas;
+                    // Count existing text objects for unique naming
+                    var count = canvas.getObjects().filter(function(obj) {
+                        return obj.type === 'i-text' || obj.type === 'textbox' || obj.type === 'text';
+                    }).length + 1;
+                    var label = 'Text ' + count;
                     var textbox = new fabric.Textbox('Text Box', {
                         fontSize: 24,
                         fill: '#222222',
@@ -575,6 +610,7 @@
                         minWidth: 40,
                         minHeight: 24,
                         type: 'textbox', // ensure type is set for config
+                        label: label
                     });
                     canvas.add(textbox);
                     canvas.centerObject(textbox);
@@ -702,7 +738,9 @@
         }
         function saveCanvasConfig() {
             if (!window.CKPPDesigner || !CKPPDesigner.ajaxUrl || !CKPPDesigner.nonce) {
-                console.error('CKPP: Missing CKPPDesigner, ajaxUrl, or nonce');
+                if (window.CKPP_DEBUG_MODE) {
+                    console.error('CKPP: Missing CKPPDesigner, ajaxUrl, or nonce');
+                }
                 return;
             }
             // Ensure all objects have fill/stroke explicitly set
@@ -714,7 +752,9 @@
             const designId = window.CKPPDesigner.designId || 0;
             const title = window.ckppDesignName || 'Untitled Design';
             showSaving('Saving…');
-            console.log('CKPP: Saving design', { designId, title, config, nonce: CKPPDesigner.nonce });
+            if (window.CKPP_DEBUG_MODE) {
+                console.log('CKPP: Saving design', { designId, title, config, nonce: CKPPDesigner.nonce });
+            }
             $.post(CKPPDesigner.ajaxUrl, {
                 action: 'ckpp_save_design',
                 nonce: CKPPDesigner.nonce,
@@ -722,7 +762,9 @@
                 title: title,
                 config: config
             }, function(resp) {
-                console.log('CKPP: Save response', resp);
+                if (window.CKPP_DEBUG_MODE) {
+                    console.log('CKPP: Save response', resp);
+                }
                 if (resp && resp.success) {
                     showSaving('Saved');
                     lastSaveStatus = 'Saved';
@@ -734,13 +776,17 @@
                     if (lastSaveStatus === 'Saved') showSaving('');
                 }, 1200);
             }).fail(function(xhr, status, error) {
-                console.error('CKPP: Save AJAX failed', status, error, xhr);
+                if (window.CKPP_DEBUG_MODE) {
+                    console.error('CKPP: Save AJAX failed', status, error, xhr);
+                }
                 showSaving('Save failed');
                 lastSaveStatus = 'Save failed';
             });
         }
         function debouncedSave() {
-            console.log('CKPP: debouncedSave called');
+            if (window.CKPP_DEBUG_MODE) {
+                console.log('CKPP: debouncedSave called');
+            }
             if (saveTimeout) clearTimeout(saveTimeout);
             saveTimeout = setTimeout(saveCanvasConfig, 500);
         }
@@ -871,20 +917,48 @@
             var obj = origRectToObject.call(this, propertiesToInclude);
             if (this.placeholderType) obj.placeholderType = this.placeholderType;
             if (this.label) obj.label = this.label;
+            if (typeof this.required !== 'undefined') obj.required = this.required;
             return obj;
         };
+        // Custom serialization for text and textbox objects ---
+        var origITextToObject = fabric.IText.prototype.toObject;
+        fabric.IText.prototype.toObject = function(propertiesToInclude) {
+            var obj = origITextToObject.call(this, propertiesToInclude);
+            if (this.label) obj.label = this.label;
+            if (typeof this.required !== 'undefined') obj.required = this.required;
+            return obj;
+        };
+        var origTextboxToObject = fabric.Textbox.prototype.toObject;
+        fabric.Textbox.prototype.toObject = function(propertiesToInclude) {
+            var obj = origTextboxToObject.call(this, propertiesToInclude);
+            if (this.label) obj.label = this.label;
+            if (typeof this.required !== 'undefined') obj.required = this.required;
+            return obj;
+        };
+        // Migration: On design load, assign labels to text objects that lack one
+        if (window.ckppFabricCanvas) {
+            window.ckppFabricCanvas.getObjects().forEach(function(obj, idx) {
+                if ((obj.type === 'i-text' || obj.type === 'textbox' || obj.type === 'text') && !obj.label) {
+                    obj.label = 'Text ' + (idx + 1);
+                }
+            });
+        }
     }
     // For modal or in-page designer
     $(document).ready(function() {
         // If CKPP_DESIGN_ID is set, load the config before initializing the designer
         if (window.CKPP_DESIGN_ID && window.CKPPDesigner && CKPPDesigner.ajaxUrl && CKPPDesigner.nonce) {
-            console.log('CKPP: Loading design config for designId', CKPP_DESIGN_ID);
+            if (window.CKPP_DEBUG_MODE) {
+                console.log('CKPP: Loading design config for designId', CKPP_DESIGN_ID);
+            }
             $.get(CKPPDesigner.ajaxUrl, {
                 action: 'ckpp_load_design',
                 nonce: CKPPDesigner.nonce,
                 designId: CKPP_DESIGN_ID
             }, function(resp) {
-                console.log('CKPP: Load design response', resp);
+                if (window.CKPP_DEBUG_MODE) {
+                    console.log('CKPP: Load design response', resp);
+                }
                 if (resp && resp.success && resp.data && resp.data.config) {
                     window.CKPP_INITIAL_CONFIG = resp.data.config;
                 } else {
@@ -892,7 +966,9 @@
                 }
                 renderMinimalDesigner();
             }).fail(function(xhr, status, error) {
-                console.error('CKPP: Failed to load design config', status, error, xhr);
+                if (window.CKPP_DEBUG_MODE) {
+                    console.error('CKPP: Failed to load design config', status, error, xhr);
+                }
                 window.CKPP_INITIAL_CONFIG = null;
                 renderMinimalDesigner();
             });

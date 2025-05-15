@@ -9,13 +9,23 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+/**
+ * Class CKPP_Clipart
+ * Handles clipart management for the CustomKings Product Personalizer plugin.
+ */
 class CKPP_Clipart {
+    /**
+     * Register hooks for clipart upload and delete actions.
+     */
     public function __construct() {
         register_activation_hook( CUSTOMKINGS_PLUGIN_FILE, [ __CLASS__, 'create_tables' ] );
         add_action( 'admin_post_ckpp_upload_clipart', [ $this, 'handle_upload' ] );
         add_action( 'admin_post_ckpp_delete_clipart', [ $this, 'handle_delete' ] );
     }
 
+    /**
+     * Create the custom database tables for clipart and tags.
+     */
     public static function create_tables() {
         global $wpdb;
         $charset_collate = $wpdb->get_charset_collate();
@@ -37,6 +47,9 @@ class CKPP_Clipart {
         ) $charset_collate;" );
     }
 
+    /**
+     * Handle clipart file upload from the admin UI. Requires nonce and capability.
+     */
     public function handle_upload() {
         if ( ! current_user_can( 'manage_options' ) ) wp_die( __( 'Unauthorized', 'customkings' ) );
         check_admin_referer( 'ckpp_upload_clipart' );
@@ -45,7 +58,14 @@ class CKPP_Clipart {
             exit;
         }
         $file = $_FILES['ckpp_clipart_file'];
-        $allowed_types = [ 'svg' => 'image/svg+xml', 'png' => 'image/png' ];
+        $allowed_types = [
+            'svg'  => 'image/svg+xml',
+            'png'  => 'image/png',
+            'jpg'  => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'gif'  => 'image/gif',
+            'webp' => 'image/webp'
+        ];
         $ext = strtolower( pathinfo( $file['name'], PATHINFO_EXTENSION ) );
         if ( ! array_key_exists( $ext, $allowed_types ) ) {
             wp_redirect( add_query_arg( 'ckpp_clipart_error', 'invalid_type', wp_get_referer() ) );
@@ -69,6 +89,9 @@ class CKPP_Clipart {
         exit;
     }
 
+    /**
+     * Handle clipart deletion from the admin UI. Requires nonce and capability.
+     */
     public function handle_delete() {
         if ( ! current_user_can( 'manage_options' ) ) wp_die( __( 'Unauthorized', 'customkings' ) );
         check_admin_referer( 'ckpp_delete_clipart' );
@@ -90,6 +113,11 @@ class CKPP_Clipart {
         exit;
     }
 
+    /**
+     * Get all uploaded clipart from the database.
+     *
+     * @return array
+     */
     public static function get_clipart() {
         global $wpdb;
         $clipart = $wpdb->prefix . 'ckpp_clipart';

@@ -9,7 +9,14 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+/**
+ * Class CKPP_Product_Designer
+ * Handles admin UI and logic for product personalization designs.
+ */
 class CKPP_Product_Designer {
+    /**
+     * Register hooks for CPT, admin UI, AJAX, and actions.
+     */
     public function __construct() {
         add_action( 'init', [ $this, 'register_design_cpt' ] );
         add_action( 'admin_menu', [ $this, 'add_admin_menu' ] );
@@ -24,6 +31,9 @@ class CKPP_Product_Designer {
         add_action( 'admin_post_ckpp_bulk_delete_images', [ $this, 'handle_bulk_delete_images' ] );
     }
 
+    /**
+     * Register the custom post type for designs.
+     */
     public function register_design_cpt() {
         register_post_type( 'ckpp_design', [
             'labels' => [
@@ -36,6 +46,9 @@ class CKPP_Product_Designer {
         ] );
     }
 
+    /**
+     * Add admin submenu pages for Designs and Images.
+     */
     public function add_admin_menu() {
         add_submenu_page(
             'ckpp_admin',
@@ -55,6 +68,9 @@ class CKPP_Product_Designer {
         );
     }
 
+    /**
+     * Render the Designs admin page and designer UI.
+     */
     public function render_designs_page() {
         $design_id = isset($_GET['design_id']) ? intval($_GET['design_id']) : 0;
         echo '<div class="wrap"><h1>' . esc_html__( 'Product Personalization Designs', 'customkings' ) . '</h1>';
@@ -116,6 +132,11 @@ class CKPP_Product_Designer {
         echo '</div>';
     }
 
+    /**
+     * Enqueue assets for the designer admin page.
+     *
+     * @param string $hook
+     */
     public function enqueue_assets( $hook ) {
         if ( isset($_GET['page']) && $_GET['page'] === 'ckpp_designs' ) {
             // Register Pickr if not already registered
@@ -134,6 +155,9 @@ class CKPP_Product_Designer {
         }
     }
 
+    /**
+     * AJAX: Save a design's configuration. Requires nonce and capability.
+     */
     public function ajax_save_design() {
         check_ajax_referer( 'ckpp_designer_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( __( 'Unauthorized', 'customkings' ) );
@@ -150,6 +174,9 @@ class CKPP_Product_Designer {
         wp_send_json_success([ 'designId' => $design_id ]);
     }
 
+    /**
+     * AJAX: Load a design's configuration. Requires nonce and capability.
+     */
     public function ajax_load_design() {
         check_ajax_referer( 'ckpp_designer_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( __( 'Unauthorized', 'customkings' ) );
@@ -159,6 +186,9 @@ class CKPP_Product_Designer {
         wp_send_json_success([ 'config' => $config, 'title' => $title ]);
     }
 
+    /**
+     * Handle creation of a new design post.
+     */
     public function handle_create_design() {
         if ( ! current_user_can( 'manage_options' ) ) {
             wp_die( __( 'Unauthorized', 'customkings' ) );
@@ -177,6 +207,9 @@ class CKPP_Product_Designer {
         }
     }
 
+    /**
+     * Handle deletion of a design post. Requires nonce and capability.
+     */
     public function handle_delete_design() {
         if ( ! current_user_can( 'manage_options' ) ) {
             wp_die( __( 'Unauthorized', 'customkings' ) );
@@ -191,6 +224,9 @@ class CKPP_Product_Designer {
         exit;
     }
 
+    /**
+     * AJAX: Clone a design. Requires nonce and capability.
+     */
     public function ajax_clone_design() {
         check_ajax_referer( 'ckpp_designer_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( __( 'Unauthorized', 'customkings' ) );
@@ -211,6 +247,9 @@ class CKPP_Product_Designer {
         }
     }
 
+    /**
+     * AJAX: Upload an image for use in designs. Requires nonce and capability.
+     */
     public function ajax_upload_image() {
         check_ajax_referer( 'ckpp_designer_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( __( 'Unauthorized', 'customkings' ) );
@@ -232,6 +271,9 @@ class CKPP_Product_Designer {
         wp_send_json_success([ 'url' => $url ]);
     }
 
+    /**
+     * Render the Images admin page.
+     */
     public function render_images_page() {
         if ( ! current_user_can( 'manage_options' ) ) {
             wp_die( __( 'Unauthorized', 'customkings' ) );
@@ -304,6 +346,9 @@ class CKPP_Product_Designer {
         echo '</div>';
     }
 
+    /**
+     * Handle deletion of a single image. Requires capability.
+     */
     public function handle_delete_image() {
         if ( ! current_user_can( 'manage_options' ) ) {
             wp_die( __( 'Unauthorized', 'customkings' ) );
@@ -322,7 +367,9 @@ class CKPP_Product_Designer {
         exit;
     }
 
-    // Handle bulk delete
+    /**
+     * Handle bulk deletion of images. Requires capability.
+     */
     public function handle_bulk_delete_images() {
         if ( ! current_user_can( 'manage_options' ) ) {
             wp_die( __( 'Unauthorized', 'customkings' ) );

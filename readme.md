@@ -10,6 +10,10 @@ https://customkings.com.au/
 This plugin enables e-commerce store customers to personalize specific products by filling in admin-defined placeholders before adding them to the cart. It features a visual admin designer, real-time preview, and generates print-ready files for order fulfillment.
 
 **New in this version:**
+- Major admin UI color update: All blue accents replaced with gold (#fec610) for a modern, branded look.
+- Clipart section now displays as a responsive grid gallery (max 8 columns, fixed card size) with large image previews and a tag filter.
+- Clipart cards feature a new accessible delete icon (red outline circle with an 'x', fills on hover) that overlaps the image in the top-right corner.
+- Improved accessibility, keyboard navigation, and visual polish throughout the admin interface.
 - Image placeholders: Admins can define image upload areas. Customers can upload images that fill and cover the defined area, are always centered, and cannot be moved or resized. Uploading a new image replaces the previous one.
 - All input fields above Add to Cart now use the backend label and have consistent, sanitized names/IDs.
 - Numerous bug fixes and UX improvements for live preview and input validation.
@@ -62,6 +66,29 @@ This plugin enables e-commerce store customers to personalize specific products 
 - Ensure all tests pass locally and in CI before releasing.
 - Tag a new release in your version control system for production deployment.
 - Only commit source code and necessary assets (see `.gitignore`).
+
+## Security
+
+If you discover a security vulnerability, please see [SECURITY.md](./SECURITY.md) for our responsible disclosure policy and contact instructions.
+
+We encourage all contributors to follow WordPress security best practices and review the SECURITY.md file before submitting code.
+
+## FAQ
+
+### Q: Why can't I see the Personalize button on my product page?
+A: Make sure you have enabled personalization for the product and saved a valid configuration in the Product Personalizer meta box.
+
+### Q: Why are my uploaded fonts or clipart not appearing?
+A: Check that the file type is allowed and the upload was successful. Only admins can upload fonts and clipart.
+
+### Q: How do I add required fields for customers?
+A: In the admin designer, mark the relevant layer as required in the Properties panel. Only required fields will be enforced on the frontend.
+
+### Q: How do I generate a print-ready file for an order?
+A: In the WooCommerce order view, click the Generate Print-Ready File button in the personalization section for the order item.
+
+### Q: How do I report a bug or request a feature?
+A: Please open an issue on GitHub or contact support@customkings.com.au.
 
 ## License
 GPLv2 or later 
