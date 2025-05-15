@@ -2,7 +2,7 @@
 /*
 Plugin Name: CustomKings Product Personalizer
 Description: Allows customers to personalize products on WooCommerce with a visual admin designer, live preview, and print-ready file generation.
-Version: 0.0.1
+Version: 1.2.1
 Author: CustomKings Personalised Gifts
 Author URI: https://customkings.com.au/
 Text Domain: customkings
@@ -40,4 +40,16 @@ class CustomKings_Product_Personalizer {
 }
 
 // Initialize the plugin
-new CustomKings_Product_Personalizer(); 
+new CustomKings_Product_Personalizer();
+
+// Add accent color CSS variable to frontend and admin
+add_action('admin_head', function() {
+    $color = get_option('ckpp_accent_color', '#0073aa');
+    if (!preg_match('/^#[a-f0-9]{3,6}$/i', $color)) $color = '#0073aa';
+    echo '<style>:root{--ckpp-accent:' . esc_attr($color) . ';}</style>';
+});
+add_action('wp_head', function() {
+    $color = get_option('ckpp_accent_color', '#0073aa');
+    if (!preg_match('/^#[a-f0-9]{3,6}$/i', $color)) $color = '#0073aa';
+    echo '<style>:root{--ckpp-accent:' . esc_attr($color) . ';}</style>';
+}); 
