@@ -1,147 +1,46 @@
-# Changelog
+# CustomKings Product Personalizer – Changelog
 
-All notable changes to this project will be documented in this file.
+## Version 1.1.1 – 2025-05-16
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
-### Added
-- Layers panel now supports drag-and-drop reordering. The top of the list is the topmost (frontmost) object on the canvas.
-- Keyboard accessibility: You can now delete the selected object using the Delete or Backspace key, in line with accessibility standards.
-- New objects (text, image, shape) are always robustly centered on the canvas using Fabric.js's `centerObject` method, regardless of zoom or pan.
-- Image placeholders now fully supported: users can upload images that fill and cover the defined area, are always centered, and cannot be moved or resized.
-- Uploading a new image replaces the previous one for that placeholder.
-- All input fields above Add to Cart now use the backend label and have consistent, sanitized names/IDs.
-- All debug panels and console output are now only shown if Debug Mode is enabled in plugin settings.
-- Debug panels are available in both the customizer modal and on the main product page for easy inspection of config and state.
-- This conditional debug output applies across all JavaScript and PHP debug code in the plugin.
-- All major PHP classes and methods now have PHPDoc comments for maintainability and developer experience.
-- FAQ section added to the readme with common troubleshooting and usage questions.
-- SECURITY.md file added with responsible disclosure policy and security best practices.
-- Contributor and security guidance added to the readme.
-
-### Changed
-- Major recovery: Restored all plugin files from MerlinStacks/productdesigner GitHub repository for a clean, working setup. Re-initialized version control.
-- Completed a full performance and dependency audit: assets are only loaded when needed, no unused dependencies, and all queries are optimized.
-- Finalized accessibility and internationalization audit: all user-facing strings are translatable and accessibility best practices are followed.
-- Documentation improvements and polish throughout the codebase and readme.
-- Major admin UI color update: All blue accents replaced with gold (#fec610) for a more modern, branded look.
-- Clipart section now displays as a responsive grid gallery (max 8 columns, fixed card size) instead of a table.
-- Clipart cards feature a larger image preview, compact meta info, and a new accessible delete icon (red outline circle with an 'x', fills on hover).
-- Delete icon now overlaps the image in the top-right corner for better UX.
-- Tag filter added above the clipart grid for easy filtering by tag.
-- Improved accessibility and keyboard navigation for all admin UI controls.
-- Numerous spacing, alignment, and visual polish improvements throughout the admin interface.
-
-### Fixed
-- Numerous bug fixes and UX improvements for live preview and input validation.
-- Enforced nonce check on the `ckpp_get_product_config` AJAX endpoint to prevent unauthorized access. All AJAX and admin actions now follow WordPress security best practices.
-- Fixed: Personalization validation and required field enforcement now works reliably for both block and classic WooCommerce themes. The plugin now detects and parses CKPP_LIVE_PREVIEW_CONFIG for compatibility with block themes.
+**What's New & Improved:**
+- **Pick Your Accent Color:** Choose your favorite accent color for the plugin in the settings. The new color picker supports both HEX and RGB!
+- **Easier Image Management:** The Images admin page now shows your uploads in a clean, visual grid (just like Clipart). Browsing and deleting images is much easier.
+- **Modern Layers Panel:** The designer's Layers panel is now sleek and user-friendly, with a clear bar layout and easy-to-use icons.
+- **Clearer Documentation:** We've made the changelog and help docs easier to read and more helpful.
+- **Accessibility & Fixes:** Lots of small improvements to make the admin easier for everyone, plus bug fixes throughout.
 
 ---
 
-## [1.1.0] - 2024-06-08
+## Version 1.1.0 – 2024-06-08
 
-### Added
-- Layers panel now supports drag-and-drop reordering. The top of the list is the topmost (frontmost) object on the canvas.
-- Keyboard accessibility: You can now delete the selected object using the Delete or Backspace key, in line with accessibility standards.
-- New objects (text, image, shape) are always robustly centered on the canvas using Fabric.js's `centerObject` method, regardless of zoom or pan.
-- Image placeholders now fully supported: users can upload images that fill and cover the defined area, are always centered, and cannot be moved or resized.
-- Uploading a new image replaces the previous one for that placeholder.
-- All input fields above Add to Cart now use the backend label and have consistent, sanitized names/IDs.
-
-### Fixed
-- Numerous bug fixes and UX improvements for live preview and input validation.
-
-### Changed
-- Major recovery: Restored all plugin files from MerlinStacks/productdesigner GitHub repository for a clean, working setup. Re-initialized version control.
+- **Drag & Drop Layers:** Easily reorder layers in the designer by dragging them up or down.
+- **Delete with Keyboard:** Press Delete or Backspace to remove selected objects in the designer.
+- **Smart Centering:** New objects (text, image, shape) are always perfectly centered on the canvas.
+- **Image Placeholders:** Customers can upload images that fill the defined area and are always centered. Uploading a new image replaces the previous one.
+- **Consistent Input Fields:** All input fields above Add to Cart now use the backend label and have consistent, sanitized names/IDs.
+- **Bug Fixes:** Many small improvements for live preview and input validation.
 
 ---
 
-## [1.0.0] - 2024-06-07
+## Version 1.0.0 – 2024-06-07
 
-### Added
-- Project structure, main plugin file, and documentation files created.
-- Top-level "Product Personalizer" admin menu and tabbed settings page.
-- Tabs for Modes & Global Settings, Fonts, Color Swatches, Clipart.
-- Debug mode toggle and settings registration.
-- Custom database tables for fonts, color palettes/colors, and clipart/tags.
-- Secure CRUD logic for all asset types (upload, delete, list).
-- Admin UI for managing fonts, color palettes/colors, and clipart.
-- Accessible controls and feedback for asset management.
-- "Designs" admin section with a visual designer (Fabric.js-based).
-- Add/edit/save/load designs as JSON.
-- Tools for adding text, rectangles, dropdowns, color swatches, and image upload placeholders.
-- Properties panel for editing selected element properties.
-- Layers panel with reordering, lock/unlock, show/hide, and delete.
-- Save/load logic for design configuration.
-- Focus trap and ARIA roles for accessibility.
-- Layers panel supports naming, reordering, locking, showing/hiding, and deleting.
-- Context menu for duplicate, bring to front, send to back, and delete.
-- Properties panel for all element types.
-- Tools for all placeholder types (except possibly advanced ones like clipart/choice).
-- Designs are saved as custom post types with config JSON.
-- "Personalize" button on product page if config exists.
-- Modal customizer UI with dynamic form generation for all placeholder types (text, dropdown, swatch, image upload).
-- Accessible modal with focus trap and ARIA roles.
-- Loading and error states.
-- Fabric.js-powered live preview in the frontend customizer.
-- Canvas renders all preview-visible elements and updates as customer interacts.
-- Customer input updates live preview in real time.
-- Data is captured as JSON and attached to cart item.
-- Accessibility for all controls.
-- Personalization data is saved with cart items.
-- Summary and preview shown in cart/checkout.
-- Personalization data and preview shown in admin order view.
-- Print-ready file generation button in admin order view.
-- Print file URL saved to order item meta.
-- Print-ready PDF generated using TCPDF with personalization data (basic text output).
-- Download link for print file in admin order view.
-
-### Changed
-- None
-
-### Deprecated
-- None
-
-### Removed
-- None
-
-### Security
-- None
+- **First Release!**
+- Visual admin designer for WooCommerce products.
+- Customers can personalize products with text, dropdowns, color swatches, and image uploads.
+- Live preview for customers as they personalize.
+- Print-ready PDF files for each order item.
+- Admin UI for managing fonts, color swatches, and clipart.
+- Accessible modals and forms (keyboard navigation, ARIA roles, color contrast).
+- All user-facing strings are translatable.
+- Helpful documentation and FAQ included.
 
 ---
 
-## [0.0.1] - Project Initialization
-- Initial plugin structure created.
-- Added main plugin file with header and author attribution.
-- Added Readme.md with installation instructions.
-
-## Remaining MVP Tasks
-
-### Admin Designer
-- [ ] Grouping/ungrouping of elements in the designer.
-- [ ] Multi-select and arrangement tools (align, distribute).
-- [ ] View mode switcher (Preview vs. Print Layout).
-
-### Templates
-- [ ] "Save as Template"/"Load Template" UI and logic for reusable configurations.
-
-### Cart/Checkout
-- [ ] "Edit Customisation" link in cart/checkout for editing before payment.
-
-### Print-Ready File Generation
-- [ ] Full vector rendering of the design/canvas in the generated PDF (not just text).
-
-### Performance & QA
-- [ ] Performance tuning (JS/CSS minification, lazy loading, etc.).
-- [ ] Accessibility audit (WCAG 2.1 AA compliance).
-- [ ] Internationalization testing and .pot file generation.
-- [ ] Final documentation polish and FAQ.
-
-## Admin Designer Improvements
-- Layers panel now supports drag-and-drop reordering. The top of the list is the topmost (frontmost) object on the canvas.
-- Improved accessibility: You can now delete the selected object using the Delete or Backspace key, in line with accessibility standards.
-- New objects (text, image, shape) are always robustly centered on the canvas using Fabric.js's `centerObject` method, regardless of zoom or pan. 
+## Coming Soon / Planned
+- Grouping and multi-select tools in the designer.
+- More arrangement tools (align, distribute, bring to front/back).
+- Save and load design templates.
+- "Edit Customisation" link in cart/checkout.
+- Even better print-ready file generation.
+- Performance and accessibility audits.
+- More helpful documentation and internationalization support. 

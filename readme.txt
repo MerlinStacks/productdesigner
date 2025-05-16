@@ -3,7 +3,7 @@ Contributors: customkings
 Tags: woocommerce, personalization, product designer, customizer, print-ready
 Requires at least: 5.8
 Tested up to: 6.2
-Stable tag: 1.0.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -31,6 +31,13 @@ Yes, admins can generate and download print-ready PDF files for each order item.
 3. Order view with personalization preview
 
 == Changelog ==
+= 1.1.1 - 2025-05-16 =
+* New: You can now change all plugin accent colors from the settings page using a modern color picker (supports HEX and RGB).
+* Improved: Layers panel in the designer is now more modern and user-friendly, with a clean bar layout and better icons.
+* Improved: Images admin area now uses a visual grid layout, just like the Clipart section, making it easier to browse and manage uploads.
+* Improved: Changelog and documentation are now more user-friendly and easier to read.
+* Fixed: Various small bugs and accessibility improvements throughout the admin UI.
+
 = 1.0.0 =
 * Initial full-featured release: admin designer, customer customizer, order view, print-ready files, accessibility, and tests.
 

@@ -60,10 +60,10 @@
                 </div>
                 <!-- Properties/Layers Sidebar -->
                 <div style="width:220px; min-width:160px;">
-                  <div style="color:#fec610; font-weight:bold; font-size:18px; margin-bottom:18px;">Properties</div>
-                  <div id="ckpp-properties-panel" style="margin-bottom:32px;"></div>
                   <div style="color:#fec610; font-weight:bold; font-size:18px; margin-bottom:18px;">Layers</div>
-                  <div id="ckpp-layers-panel"></div>
+                  <div id="ckpp-layers-panel" style="margin-bottom:32px;"></div>
+                  <div style="color:#fec610; font-weight:bold; font-size:18px; margin-bottom:18px;">Properties</div>
+                  <div id="ckpp-properties-panel"></div>
                 </div>
               </div>
             </div>
@@ -166,12 +166,13 @@
                 var isSelected = sel === obj;
                 var isVisible = obj.visible !== false;
                 var isLocked = obj.lockMovementX && obj.lockMovementY && obj.selectable === false;
-                html += `<div data-layer-idx="${idx}" draggable="true" style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;margin-bottom:4px;border-radius:6px;cursor:pointer;background:${isSelected ? '#ffe9a6' : 'transparent'};border:1px solid ${isSelected ? '#fec610' : 'transparent'};font-size:14px;">
-                  <span style="flex:1;" >${obj.label ? obj.label : (obj.placeholderType ? obj.placeholderType : obj.type)}</span>
-                  <span style="display:flex;gap:2px;align-items:center;">
-                    <button data-toggle-visible="${idx}" style="font-size:15px;" title="${isVisible ? 'Hide' : 'Show'}">${isVisible ? '👁' : '🚫'}</button>
-                    <button data-toggle-lock="${idx}" style="font-size:15px;" title="${isLocked ? 'Unlock' : 'Lock'}">${isLocked ? '🔒' : '🔓'}</button>
-                    <button data-delete-layer="${idx}" style="font-size:15px; color:#a00; background:none; border:none; cursor:pointer;" title="Delete">🗑️</button>
+                html += `<div data-layer-idx="${idx}" draggable="true" tabindex="0" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;margin-bottom:10px;border-radius:10px;cursor:pointer;background:${isSelected ? '#fff7e0' : '#fff'};box-shadow:0 1px 4px rgba(0,0,0,0.06);border:1.5px solid ${isSelected ? '#fec610' : 'transparent'};font-size:15px;transition:box-shadow 0.2s,border 0.2s;
+                outline:none;gap:10px;">
+                  <span style="flex:1; text-align:left; font-weight:500; color:#222; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${obj.label ? obj.label : (obj.placeholderType ? obj.placeholderType : obj.type)}</span>
+                  <span style="display:flex;gap:8px;align-items:center;justify-content:flex-end;">
+                    <button data-toggle-visible="${idx}" style="font-size:17px; background:none; border:none; color:#888; border-radius:5px; padding:4px; cursor:pointer; transition:background 0.15s;" title="${isVisible ? 'Hide' : 'Show'}" aria-label="${isVisible ? 'Hide layer' : 'Show layer'}">${isVisible ? '👁' : '🚫'}</button>
+                    <button data-toggle-lock="${idx}" style="font-size:17px; background:none; border:none; color:#888; border-radius:5px; padding:4px; cursor:pointer; transition:background 0.15s;" title="${isLocked ? 'Unlock' : 'Lock'}" aria-label="${isLocked ? 'Unlock layer' : 'Lock layer'}">${isLocked ? '🔒' : '🔓'}</button>
+                    <button data-delete-layer="${idx}" style="font-size:17px; background:none; border:none; color:#e74c3c; border-radius:5px; padding:4px; cursor:pointer; transition:background 0.15s;" title="Delete" aria-label="Delete layer">🗑️</button>
                   </span>
                 </div>`;
             });

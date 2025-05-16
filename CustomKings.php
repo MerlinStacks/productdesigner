@@ -1,10 +1,12 @@
 <?php
 /*
 Plugin Name: CustomKings Product Personalizer
-Description: Allows customers to personalize products on WooCommerce with a visual admin designer, live preview, and print-ready file generation.
-Version: 1.2.1
-Author: CustomKings Personalised Gifts
+Plugin URI: https://customkings.com.au/
+Description: WooCommerce product personalization with live preview and print-ready files.
+Version: 1.1.1
+Author: CustomKings
 Author URI: https://customkings.com.au/
+License: GPLv2 or later
 Text Domain: customkings
 Domain Path: /languages
 */

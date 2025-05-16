@@ -18,6 +18,13 @@ This plugin enables e-commerce store customers to personalize specific products 
 - All input fields above Add to Cart now use the backend label and have consistent, sanitized names/IDs.
 - Numerous bug fixes and UX improvements for live preview and input validation.
 
+## What's New in 1.1.1 (2025-05-16)
+- **Accent Color Picker:** You can now change all plugin accent colors from the settings page using a modern color picker (supports HEX and RGB).
+- **Modern Layers Panel:** The designer's Layers panel is now more modern and user-friendly, with a clean bar layout and improved icons.
+- **Visual Images Grid:** The Images admin area now uses a visual grid layout, just like the Clipart section, making it easier to browse and manage uploads.
+- **Better Documentation:** The changelog and documentation are now more user-friendly and easier to read.
+- **Accessibility & Bug Fixes:** Various small bugs and accessibility improvements throughout the admin UI.
+
 ## Installation
 1. Upload the plugin files to the `/wp-content/plugins/customkings-product-personalizer` directory, or install the plugin through the WordPress plugins screen directly.
 2. Activate the plugin through the 'Plugins' screen in WordPress.

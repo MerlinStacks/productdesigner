@@ -302,14 +302,9 @@ class CKPP_Product_Designer {
             return;
         }
         // Search/filter input
-        echo '<input type="text" id="ckpp-image-search" placeholder="Search images..." style="margin-bottom:1em; width:300px; font-size:15px; padding:4px 8px;" />';
-        // Bulk delete form
-        echo '<form method="post" action="' . esc_url( admin_url('admin-post.php') ) . '" id="ckpp-bulk-delete-form" onsubmit="return confirm(\'Delete selected images?\');">';
-        echo '<input type="hidden" name="action" value="ckpp_bulk_delete_images" />';
-        wp_nonce_field('ckpp_bulk_delete_images', 'ckpp_bulk_delete_nonce');
-        echo '<button type="submit" name="ckpp_bulk_delete" class="button" style="margin-bottom:1em;">Bulk Delete</button>';
-        echo '<table class="widefat fixed striped" id="ckpp-images-table" style="max-width:900px;">';
-        echo '<thead><tr><th><input type="checkbox" id="ckpp-select-all" /></th><th>Preview</th><th>File Name</th><th>Size</th><th>Upload Date</th><th>Actions</th></tr></thead><tbody>';
+        echo '<input type="text" id="ckpp-image-search" placeholder="Search images..." style="margin-bottom:1.5em; width:300px; font-size:15px; padding:4px 8px;" />';
+        echo '<div class="ckpp-clipart-grid" id="ckpp-images-grid">';
+        $has_images = false;
         foreach ( $images as $img ) {
             $file = $dir . $img;
             $url = $url_base . rawurlencode($img);
@@ -317,30 +312,44 @@ class CKPP_Product_Designer {
             $size = filesize($file);
             $size_str = $size > 1048576 ? round($size/1048576,2).' MB' : round($size/1024,1).' KB';
             $delete_url = wp_nonce_url( admin_url( 'admin.php?action=ckpp_delete_image&ckpp_delete_image=' . urlencode($img) ), 'ckpp_delete_image_' . $img );
-            echo '<tr>';
-            echo '<td><input type="checkbox" name="ckpp_bulk_images[]" value="' . esc_attr($img) . '" /></td>';
-            echo '<td><img src="' . esc_url( $url ) . '" style="max-width:80px;max-height:80px;" alt="" /></td>';
-            echo '<td>' . esc_html( $img ) . '</td>';
-            echo '<td>' . esc_html( $size_str ) . '</td>';
-            echo '<td>' . esc_html( $date ) . '</td>';
-            echo '<td><a href="' . esc_url( $delete_url ) . '" style="color:#a00;" onclick="return confirm(\'Delete this image?\');">Delete</a></td>';
-            echo '</tr>';
+            $has_images = true;
+            echo '<div class="ckpp-clipart-card ckpp-image-card" data-img-name="' . esc_attr($img) . '">';
+            echo '<div class="ckpp-clipart-thumb">';
+            echo '<img src="' . esc_url( $url ) . '" alt="" style="width:100%;height:100%;object-fit:contain;max-width:120px;max-height:120px;" />';
+            echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="display:inline;">';
+            wp_nonce_field( 'ckpp_delete_image_' . $img );
+            echo '<input type="hidden" name="action" value="ckpp_delete_image" />';
+            echo '<input type="hidden" name="ckpp_delete_image" value="' . esc_attr($img) . '" />';
+            echo '<button type="submit" class="ckpp-clipart-delete-btn" title="' . esc_attr__('Delete this image', 'customkings') . '" onclick="return confirm(\'' . esc_js( __( 'Delete this image?', 'customkings' ) ) . '\');">';
+            echo '<span class="ckpp-clipart-delete-svg" aria-hidden="true">';
+            echo '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" focusable="false" xmlns="http://www.w3.org/2000/svg">';
+            echo '<circle cx="9" cy="9" r="8" stroke="#b32d2e" stroke-width="2" fill="none"/>';
+            echo '<line x1="6" y1="6" x2="12" y2="12" stroke="#b32d2e" stroke-width="2" stroke-linecap="round"/>';
+            echo '<line x1="12" y1="6" x2="6" y2="12" stroke="#b32d2e" stroke-width="2" stroke-linecap="round"/>';
+            echo '</svg>';
+            echo '</span>';
+            echo '</button>';
+            echo '</form>';
+            echo '</div>';
+            echo '<div class="ckpp-clipart-meta">';
+            echo '<div class="ckpp-clipart-name">' . esc_html( $img ) . '</div>';
+            echo '<div class="ckpp-clipart-tags">' . esc_html( $size_str ) . ' &bull; ' . esc_html( $date ) . '</div>';
+            echo '</div>';
+            echo '</div>';
         }
-        echo '</tbody></table>';
-        echo '</form>';
-        // JS for search/filter and select all
+        if (!$has_images) {
+            echo '<div style="padding:2em;text-align:center;color:#888;">' . esc_html__( 'No images uploaded yet.', 'customkings' ) . '</div>';
+        }
+        echo '</div>';
+        // JS for search/filter
         echo '<script>
         document.getElementById("ckpp-image-search").addEventListener("input", function() {
             var val = this.value.toLowerCase();
-            var rows = document.querySelectorAll("#ckpp-images-table tbody tr");
-            rows.forEach(function(row) {
-                var name = row.cells[2].textContent.toLowerCase();
-                row.style.display = name.indexOf(val) !== -1 ? "" : "none";
+            var cards = document.querySelectorAll("#ckpp-images-grid .ckpp-image-card");
+            cards.forEach(function(card) {
+                var name = card.querySelector(".ckpp-clipart-name").textContent.toLowerCase();
+                card.style.display = name.indexOf(val) !== -1 ? "" : "none";
             });
-        });
-        document.getElementById("ckpp-select-all").addEventListener("change", function() {
-            var checked = this.checked;
-            document.querySelectorAll("#ckpp-images-table tbody input[type=checkbox]").forEach(function(cb) { cb.checked = checked; });
         });
         </script>';
         echo '</div>';

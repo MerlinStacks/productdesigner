@@ -44,6 +44,7 @@ class CKPP_Admin_UI {
         register_setting( 'ckpp_settings_group', 'ckpp_enabled', [ 'type' => 'boolean', 'sanitize_callback' => 'rest_sanitize_boolean', 'default' => true ] );
         register_setting( 'ckpp_settings_group', 'ckpp_debug_mode', [ 'type' => 'boolean', 'sanitize_callback' => 'rest_sanitize_boolean', 'default' => false ] );
         register_setting( 'ckpp_settings_group', 'ckpp_license_key', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'ckpp_settings_group', 'ckpp_accent_color', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_hex_color', 'default' => '#fec610' ] );
     }
 
     public function render_admin_page() {
@@ -341,9 +342,50 @@ class CKPP_Admin_UI {
                         <span class="description"><?php esc_html_e( 'Enter your license key if required.', 'customkings' ); ?></span>
                     </td>
                 </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="ckpp_accent_color"><?php esc_html_e( 'Accent Color', 'customkings' ); ?></label>
+                    </th>
+                    <td>
+                        <input type="text" id="ckpp_accent_color" name="ckpp_accent_color" value="<?php echo esc_attr( get_option( 'ckpp_accent_color', '#fec610' ) ); ?>" class="regular-text" />
+                        <div id="ckpp-accent-color-picker"></div>
+                        <span class="description"><?php esc_html_e( 'Choose the accent color for the plugin. Supports HEX and RGB.', 'customkings' ); ?></span>
+                    </td>
+                </tr>
             </table>
             <?php submit_button(); ?>
         </form>
+        <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr"></script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/classic.min.css" />
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var pickr = Pickr.create({
+                el: '#ckpp-accent-color-picker',
+                theme: 'classic',
+                default: document.getElementById('ckpp_accent_color').value,
+                components: {
+                    preview: true,
+                    opacity: true,
+                    hue: true,
+                    interaction: {
+                        hex: true,
+                        rgba: true,
+                        input: true,
+                        save: true
+                    }
+                }
+            });
+            pickr.on('save', function(color) {
+                var hex = color.toHEXA().toString();
+                document.getElementById('ckpp_accent_color').value = hex;
+                pickr.hide();
+            });
+            pickr.on('change', function(color) {
+                var hex = color.toHEXA().toString();
+                document.getElementById('ckpp_accent_color').value = hex;
+            });
+        });
+        </script>
         <?php
     }
 
