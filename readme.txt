@@ -31,6 +31,12 @@ Yes, admins can generate and download print-ready PDF files for each order item.
 3. Order view with personalization preview
 
 == Changelog ==
+= 1.1.2 – 2025-05-17 =
+* Reliable image deletion from the Images admin page (no more blank screens or errors).
+* Personalization details (including uploaded images) always show on cart and checkout pages.
+* Updated to use the correct WooCommerce order item meta hook for compatibility.
+* Bug fixes: no duplicate field labels, improved admin error handling, minor accessibility and UI improvements.
+
 = 1.1.1 - 2025-05-16 =
 * New: You can now change all plugin accent colors from the settings page using a modern color picker (supports HEX and RGB).
 * Improved: Layers panel in the designer is now more modern and user-friendly, with a clean bar layout and better icons.

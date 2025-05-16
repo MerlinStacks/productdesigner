@@ -147,11 +147,13 @@ class CKPP_Product_Designer {
             wp_enqueue_script( 'ckpp-designer', plugins_url( '../assets/designer.js', __FILE__ ), [ 'jquery', 'pickr' ], '1.0', true );
             wp_enqueue_style( 'ckpp-designer', plugins_url( '../assets/designer.css', __FILE__ ), [], '1.0' );
             wp_enqueue_style( 'pickr-classic' );
-            wp_localize_script( 'ckpp-designer', 'CKPPDesigner', [
-                'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-                'nonce'   => wp_create_nonce( 'ckpp_designer_nonce' ),
-                'designId' => isset($_GET['design_id']) ? intval($_GET['design_id']) : 0,
-            ] );
+            if (wp_script_is('ckpp-designer', 'enqueued')) {
+                wp_localize_script( 'ckpp-designer', 'CKPPDesigner', [
+                    'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+                    'nonce'   => wp_create_nonce( 'ckpp_designer_nonce' ),
+                    'designId' => isset($_GET['design_id']) ? intval($_GET['design_id']) : 0,
+                ] );
+            }
         }
     }
 
@@ -288,6 +290,25 @@ class CKPP_Product_Designer {
         if ( isset($_GET['bulk_deleted']) && $_GET['bulk_deleted'] === '1' ) {
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Selected images deleted.', 'customkings') . '</p></div>';
         }
+        if ( isset($_GET['ckpp_delete_error']) ) {
+            $err = sanitize_text_field($_GET['ckpp_delete_error']);
+            $msg = '';
+            switch ($err) {
+                case 'unauthorized':
+                    $msg = __('You are not authorized to delete images.', 'customkings'); break;
+                case 'invalid_nonce':
+                    $msg = __('Security check failed. Please try again.', 'customkings'); break;
+                case 'no_image':
+                    $msg = __('No image specified for deletion.', 'customkings'); break;
+                case 'not_found':
+                    $msg = __('Image file not found. It may have already been deleted.', 'customkings'); break;
+                case 'delete_failed':
+                    $msg = __('Failed to delete the image file. Check file permissions.', 'customkings'); break;
+                default:
+                    $msg = __('Unknown error occurred while deleting image.', 'customkings');
+            }
+            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html($msg) . '</p></div>';
+        }
         if ( ! file_exists( $dir ) ) {
             echo '<p>' . esc_html__( 'No images uploaded yet.', 'customkings' ) . '</p>';
             echo '</div>';
@@ -359,20 +380,44 @@ class CKPP_Product_Designer {
      * Handle deletion of a single image. Requires capability.
      */
     public function handle_delete_image() {
+        // Remove debug logging
         if ( ! current_user_can( 'manage_options' ) ) {
-            wp_die( __( 'Unauthorized', 'customkings' ) );
+            $error = 'unauthorized';
+        } else {
+            $img = null;
+            $error = '';
+            if ( isset($_GET['ckpp_delete_image']) ) {
+                $img = basename( $_GET['ckpp_delete_image'] );
+                if ( ! wp_verify_nonce( $_GET['_wpnonce'], 'ckpp_delete_image_' . $img ) ) {
+                    $error = 'invalid_nonce';
+                }
+            } elseif ( isset($_POST['ckpp_delete_image']) ) {
+                $img = basename( $_POST['ckpp_delete_image'] );
+                if ( ! wp_verify_nonce( $_POST['_wpnonce'], 'ckpp_delete_image_' . $img ) ) {
+                    $error = 'invalid_nonce';
+                }
+            } else {
+                $error = 'no_image';
+            }
+            $upload_dir = wp_upload_dir();
+            $file = $img ? $upload_dir['basedir'] . '/ckpp_images/' . $img : '';
+            if ( !$error && $img ) {
+                if ( file_exists( $file ) ) {
+                    if ( ! unlink( $file ) ) {
+                        $error = 'delete_failed';
+                    }
+                } else {
+                    $error = 'not_found';
+                }
+            }
         }
-        if ( ! isset($_GET['ckpp_delete_image']) ) {
-            wp_die( __( 'No image specified.', 'customkings' ) );
+        $redirect_url = admin_url( 'admin.php?page=ckpp_images' );
+        if ( $error ) {
+            $redirect_url = add_query_arg( 'ckpp_delete_error', $error, $redirect_url );
+        } else {
+            $redirect_url = add_query_arg( 'deleted', '1', $redirect_url );
         }
-        $img = basename( $_GET['ckpp_delete_image'] );
-        check_admin_referer( 'ckpp_delete_image_' . $img );
-        $upload_dir = wp_upload_dir();
-        $file = $upload_dir['basedir'] . '/ckpp_images/' . $img;
-        if ( file_exists( $file ) ) {
-            unlink( $file );
-        }
-        wp_redirect( admin_url( 'admin.php?page=ckpp_images&deleted=1' ) );
+        wp_redirect( $redirect_url );
         exit;
     }
 

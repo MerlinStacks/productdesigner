@@ -1,5 +1,18 @@
 # CustomKings Product Personalizer – Changelog
 
+## Version 1.1.2 – 2025-05-17
+
+**What's New & Fixed:**
+- **Reliable Image Deletion:** You can now delete uploaded images from the Images admin page without errors or blank screens. All errors are handled gracefully with clear admin notices.
+- **Personalization Details in Cart/Checkout:** Customers always see their personalization details (including uploaded images) on the cart and checkout pages, with a clean, accessible layout.
+- **WooCommerce Compatibility:** Updated to use the `woocommerce_new_order_item` hook for saving personalization data to order items (no more deprecated warnings).
+- **Bug Fixes & Improvements:**
+  - Prevent duplicate field labels in cart/checkout.
+  - Improved error handling and admin feedback for image management.
+  - Minor accessibility and UI improvements in admin.
+
+---
+
 ## Version 1.1.1 – 2025-05-16
 
 **What's New & Improved:**

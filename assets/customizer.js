@@ -3,6 +3,7 @@
     let config = null;
     let modal = null;
     let lastFocused = null;
+    let ckppImageUploadsInProgress = 0;
     // Ensure CKPP_LIVE_CONFIG is set from CKPP_LIVE_PREVIEW_CONFIG if present
     if (window.CKPP_LIVE_PREVIEW_CONFIG && !window.CKPP_LIVE_CONFIG) {
         try {
@@ -25,6 +26,12 @@
         if (addToCartForm) {
             // Submit handler (form)
             addToCartForm.addEventListener('submit', function(e) {
+                if (ckppImageUploadsInProgress > 0) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    alert('Please wait for all image uploads to finish.');
+                    return false;
+                }
                 var validation = ckppValidateRequiredFieldsInline();
                 if (!validation.allFilled) {
                     var container = document.getElementById('ckpp-text-inputs-container');
@@ -177,22 +184,39 @@
         }
         form.oninput = renderPreview;
         form.onchange = function(e) {
-            // Image preview logic
+            // Image preview logic and upload
             config.objects.forEach(function(obj, idx) {
                 if (obj.placeholderType === 'image') {
                     const fileInput = form['image_' + idx];
                     const previewImg = document.getElementById('ckpp-image-preview-' + idx);
                     if (fileInput && fileInput.files && fileInput.files[0]) {
+                        const file = fileInput.files[0];
+                        // Show preview
                         const reader = new FileReader();
                         reader.onload = function(ev) {
                             previewImg.src = ev.target.result;
                             previewImg.style.display = 'block';
                             previewImg.setAttribute('aria-label', 'Image preview');
                         };
-                        reader.readAsDataURL(fileInput.files[0]);
+                        reader.readAsDataURL(file);
+                        // Upload to backend
+                        const formData = new FormData();
+                        formData.append('action', 'ckpp_upload_customer_image');
+                        formData.append('nonce', CKPPCustomizer.nonce);
+                        formData.append('file', file);
+                        uploadImageAndTrack(file, function(data) {
+                            if (data.success && data.data && data.data.url) {
+                                fileInput.setAttribute('data-uploaded-url', data.data.url);
+                            } else {
+                                fileInput.removeAttribute('data-uploaded-url');
+                            }
+                        }, function(err) {
+                            fileInput.removeAttribute('data-uploaded-url');
+                        });
                     } else {
                         previewImg.src = '';
                         previewImg.style.display = 'none';
+                        fileInput && fileInput.removeAttribute('data-uploaded-url');
                     }
                 }
             });
@@ -210,6 +234,14 @@
             debugPanel.textContent = JSON.stringify(config, null, 2);
             document.getElementById('ckpp-customizer-window').appendChild(debugPanel);
         }
+    }
+    function uploadImageAndTrack(file, onSuccess, onError) {
+        ckppImageUploadsInProgress++;
+        // ... existing upload logic ...
+        fetch(/* ... */)
+            .then(function(response) { /* ... */ })
+            .catch(function(err) { /* ... */ })
+            .finally(function() { ckppImageUploadsInProgress--; });
     }
     function renderPreview() {
         const previewDiv = document.getElementById('ckpp-customizer-preview');
@@ -318,15 +350,19 @@
             if (obj.placeholderType === 'image') {
                 const fileInput = form['image_' + idx];
                 if (fileInput && fileInput.files && fileInput.files[0]) {
-                    const reader = new FileReader();
-                    reader.onload = function(ev) {
-                        data['image_' + idx] = ev.target.result;
-                        finalizeSave();
-                    };
-                    reader.readAsDataURL(fileInput.files[0]);
+                    const uploadedUrl = fileInput.getAttribute('data-uploaded-url');
+                    if (uploadedUrl) {
+                        data['image_' + idx] = uploadedUrl;
+                    } else {
+                        // fallback: use data URL (legacy, if upload failed)
+                        const reader = new FileReader();
+                        reader.onload = function(ev) {
+                            data['image_' + idx] = ev.target.result;
+                        };
+                        reader.readAsDataURL(fileInput.files[0]);
+                    }
                 } else {
                     data['image_' + idx] = '';
-                    finalizeSave();
                 }
             }
         });
@@ -345,6 +381,8 @@
                 }
                 input.value = JSON.stringify(data);
             }
+            // Add a random unique value to the personalization data
+            data['ckpp_unique'] = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
             closeCustomizer();
         }
     }
@@ -651,64 +689,37 @@
                 previewImg.style.maxWidth = '120px';
                 previewImg.style.maxHeight = '80px';
                 previewImg.style.marginTop = '0.5em';
-                fileInput.addEventListener('change', function() {
-                    if (fileInput.files && fileInput.files[0]) {
-                        var reader = new FileReader();
+                fileInput.onchange = function(e) {
+                    if (fileInput && fileInput.files && fileInput.files[0]) {
+                        const file = fileInput.files[0];
+                        // Show preview
+                        const reader = new FileReader();
                         reader.onload = function(ev) {
                             previewImg.src = ev.target.result;
                             previewImg.style.display = 'block';
                             previewImg.setAttribute('aria-label', 'Image preview');
-                            // Sync to live preview
-                            var canvas = window.ckppLivePreviewCanvas;
-                            if (canvas && canvas.getObjects) {
-                                var objs = canvas.getObjects();
-                                var imgObjIdx = getImagePlaceholderIndex(config, idx);
-                                var imgObj = objs.filter(function(o) { return o.placeholderType === 'image'; })[imgObjIdx];
-                                var boxSource = imgObj || config.objects[idx];
-                                if (!boxSource) return;
-                                var objsNow = canvas.getObjects();
-                                for (var i = objsNow.length - 1; i >= 0; i--) {
-                                    var o = objsNow[i];
-                                    if (o.type === 'image' && !o.placeholderType) {
-                                        if (Math.abs(o.left - boxSource.left) < 2 && Math.abs(o.top - boxSource.top) < 2) {
-                                            canvas.remove(o);
-                                        }
-                                    }
-                                }
-                                fabric.Image.fromURL(ev.target.result, function(img) {
-                                    var boxW = (boxSource.width || 0) * (boxSource.scaleX || 1);
-                                    var boxH = (boxSource.height || 0) * (boxSource.scaleY || 1);
-                                    var imgW = img.width;
-                                    var imgH = img.height;
-                                    var scale = Math.max(boxW / imgW, boxH / imgH);
-                                    var scaledW = imgW * scale;
-                                    var scaledH = imgH * scale;
-                                    var left = (boxSource.left || 0) + (boxW - scaledW) / 2;
-                                    var top = (boxSource.top || 0) + (boxH - scaledH) / 2;
-                                    img.set({
-                                        left: left,
-                                        top: top,
-                                        scaleX: scale,
-                                        scaleY: scale,
-                                        selectable: false,
-                                        evented: false,
-                                        hasControls: false,
-                                        hasBorders: false
-                                    });
-                                    if (imgObj) canvas.remove(imgObj);
-                                    canvas.insertAt(img, idx, false);
-                                    canvas.renderAll();
-                                }, { crossOrigin: 'anonymous' });
-                            }
-                            validateTextInputs();
                         };
-                        reader.readAsDataURL(fileInput.files[0]);
+                        reader.readAsDataURL(file);
+                        // Upload to backend
+                        const formData = new FormData();
+                        formData.append('action', 'ckpp_upload_customer_image');
+                        formData.append('nonce', CKPPCustomizer.nonce);
+                        formData.append('file', file);
+                        uploadImageAndTrack(file, function(data) {
+                            if (data.success && data.data && data.data.url) {
+                                fileInput.setAttribute('data-uploaded-url', data.data.url);
+                            } else {
+                                fileInput.removeAttribute('data-uploaded-url');
+                            }
+                        }, function(err) {
+                            fileInput.removeAttribute('data-uploaded-url');
+                        });
                     } else {
                         previewImg.src = '';
                         previewImg.style.display = 'none';
-                        validateTextInputs();
+                        fileInput && fileInput.removeAttribute('data-uploaded-url');
                     }
-                });
+                };
                 container.appendChild(fileInput);
                 container.appendChild(previewImg);
             }
@@ -717,6 +728,44 @@
         form.insertBefore(container, addToCartBtn);
         // Initial validation
         validateTextInputs();
+        // Add this after insertTextInputsAboveAddToCart is called (or at the end of that function):
+        var addToCartForm = document.querySelector('form.cart');
+        if (addToCartForm) {
+            addToCartForm.addEventListener('submit', function(e) {
+                if (ckppImageUploadsInProgress > 0) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    alert('Please wait for all image uploads to finish.');
+                    return false;
+                }
+                // Collect personalization data from inline fields
+                var data = {};
+                (config.objects || []).forEach(function(obj, idx) {
+                    if (obj.type === 'i-text') {
+                        var input = document.getElementById('ckpp-text-input-' + (obj.label || ('Text ' + (idx+1))).toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + idx);
+                        data['text_' + idx] = input ? input.value : '';
+                    }
+                    if (obj.type === 'textbox') {
+                        var textarea = document.getElementById('ckpp-textarea-input-' + (obj.label || ('Text Box ' + (idx+1))).toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + idx);
+                        data['textbox_' + idx] = textarea ? textarea.value : '';
+                    }
+                    if (obj.placeholderType === 'image') {
+                        var fileInput = document.getElementById('ckpp-image-input-' + (obj.label || 'Image Upload').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + idx);
+                        var uploadedUrl = fileInput ? fileInput.getAttribute('data-uploaded-url') : '';
+                        data['image_' + idx] = uploadedUrl || '';
+                    }
+                });
+                data['ckpp_unique'] = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                var input = addToCartForm.querySelector('input[name="ckpp_personalization_data"]');
+                if (!input) {
+                    input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'ckpp_personalization_data';
+                    addToCartForm.appendChild(input);
+                }
+                input.value = JSON.stringify(data);
+            }, true);
+        }
     }
     // Helper to get the Nth index of a type in config.objects
     function getTextIndex(config, idx, type) {
@@ -796,6 +845,13 @@
     }
     // Handler for Add to Cart submit when modal is open
     function ckppHandleModalAddToCartSubmit(e) {
+        if (ckppImageUploadsInProgress > 0) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            document.getElementById('ckpp-customizer-error').textContent = 'Please wait for all image uploads to finish.';
+            document.getElementById('ckpp-customizer-error').style.display = 'block';
+            return false;
+        }
         const form = document.getElementById('ckpp-customizer-form');
         let allFilled = true;
         let firstError = null;
@@ -847,13 +903,24 @@
             if (obj.placeholderType === 'image') {
                 const fileInput = form['image_' + idx];
                 if (fileInput && fileInput.files && fileInput.files[0]) {
-                    // Synchronous: just note that image will be handled by backend or elsewhere
-                    data['image_' + idx] = fileInput.value ? fileInput.value : '';
+                    const uploadedUrl = fileInput.getAttribute('data-uploaded-url');
+                    if (uploadedUrl) {
+                        data['image_' + idx] = uploadedUrl;
+                    } else {
+                        // fallback: use data URL (legacy, if upload failed)
+                        const reader = new FileReader();
+                        reader.onload = function(ev) {
+                            data['image_' + idx] = ev.target.result;
+                        };
+                        reader.readAsDataURL(fileInput.files[0]);
+                    }
                 } else {
                     data['image_' + idx] = '';
                 }
             }
         });
+        // Add a random unique value to the personalization data
+        data['ckpp_unique'] = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
         let input = e.target.querySelector('input[name="ckpp_personalization_data"]');
         if (!input) {
             input = document.createElement('input');

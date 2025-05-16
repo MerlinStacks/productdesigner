@@ -24,13 +24,15 @@ class CKPP_Frontend_Customizer {
         add_action( 'wp_ajax_nopriv_ckpp_get_product_config', [ $this, 'ajax_get_config' ] );
         add_filter( 'woocommerce_add_cart_item_data', [ $this, 'add_cart_item_data' ], 10, 3 );
         add_filter( 'woocommerce_get_item_data', [ $this, 'display_cart_item_data' ], 10, 2 );
-        add_action( 'woocommerce_add_order_item_meta', [ $this, 'add_order_item_meta' ], 10, 3 );
+        add_action( 'woocommerce_new_order_item', [ $this, 'add_order_item_meta' ], 10, 3 );
         add_action( 'woocommerce_before_order_itemmeta', [ $this, 'admin_order_item_personalization' ], 10, 3 );
         add_action( 'wp_ajax_ckpp_generate_print_file', [ $this, 'ajax_generate_print_file' ] );
         add_action( 'template_redirect', [ $this, 'replace_gallery_with_live_preview' ] );
         if (is_admin()) {
             add_action('admin_menu', [ $this, 'add_print_files_submenu' ]);
         }
+        add_action( 'wp_ajax_ckpp_upload_customer_image', [ $this, 'ajax_upload_customer_image' ] );
+        add_action( 'wp_ajax_nopriv_ckpp_upload_customer_image', [ $this, 'ajax_upload_customer_image' ] );
     }
 
     /**
@@ -127,21 +129,16 @@ class CKPP_Frontend_Customizer {
         if (isset($cart_item['ckpp_personalization_data'])) {
             $data = json_decode($cart_item['ckpp_personalization_data'], true);
             if (is_array($data)) {
-                // Add a header for personalization details
+                // Add a single header for personalization details (display only)
                 $item_data[] = [
-                    'name' => esc_html__('Personalization Details', 'customkings'),
+                    'name' => '',
                     'value' => '',
-                    'display' => '<strong>' . esc_html__('Personalization Details:', 'customkings') . '</strong>',
+                    'display' => '<strong>' . esc_html__('Personalization Details', 'customkings') . '</strong>',
                 ];
-                
                 foreach ($data as $key => $value) {
-                    // Skip empty values
-                    if (empty($value)) continue;
-                    
-                    // Format the label nicely
-                    $label = ucwords(str_replace(['_', '-'], ' ', $key));
-                    
-                    // Handle image values
+                    if (empty($value) || $key === 'ckpp_unique') continue;
+                    $label = preg_replace('/[_-]?\d+$/', '', $key);
+                    $label = ucwords(str_replace(['_', '-'], ' ', $label));
                     if (is_string($value) && (strpos($value, 'data:image') === 0 || preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $value))) {
                         $img_html = sprintf(
                             '<img src="%s" alt="%s" style="max-width:100px;max-height:80px;display:block;margin:5px 0;" />',
@@ -149,19 +146,14 @@ class CKPP_Frontend_Customizer {
                             esc_attr($label)
                         );
                         $item_data[] = [
-                            'name' => esc_html($label),
-                            'value' => $img_html,
+                            'name' => '',
+                            'value' => '',
                             'display' => $img_html,
                         ];
                     } elseif (is_string($value) && $value !== '') {
                         $item_data[] = [
-                            'name' => '- ' . esc_html($label),
+                            'name' => esc_html($label),
                             'value' => esc_html($value),
-                            'display' => sprintf(
-                                '<span style="display:block;margin:2px 0;">%s: %s</span>',
-                                esc_html($label),
-                                esc_html($value)
-                            ),
                         ];
                     }
                 }
@@ -171,15 +163,17 @@ class CKPP_Frontend_Customizer {
     }
 
     /**
-     * Save personalization data to order item meta.
+     * Save personalization data to order item meta (WooCommerce >=3.0).
      *
      * @param int $item_id
-     * @param array $values
-     * @param string $cart_item_key
+     * @param WC_Order_Item $item
+     * @param int $order_id
      */
-    public function add_order_item_meta( $item_id, $values, $cart_item_key ) {
-        if ( isset( $values['ckpp_personalization_data'] ) ) {
-            wc_add_order_item_meta( $item_id, '_ckpp_personalization_data', $values['ckpp_personalization_data'] );
+    public function add_order_item_meta( $item_id, $item, $order_id ) {
+        // $item is a WC_Order_Item object
+        $personalization = $item->get_meta('ckpp_personalization_data');
+        if ( $personalization ) {
+            wc_add_order_item_meta( $item_id, '_ckpp_personalization_data', $personalization );
         }
     }
 
@@ -394,6 +388,32 @@ window.CKPP_DEBUG_MODE = ' . $debug_mode . ';</script>';
             }
         }
         echo '</tbody></table></div>';
+    }
+
+    /**
+     * AJAX: Handle customer image upload for personalization. Public (with nonce and file checks).
+     */
+    public function ajax_upload_customer_image() {
+        check_ajax_referer( 'ckpp_customizer_nonce', 'nonce' );
+        // Limit to logged-in users or guests (no capability check)
+        if ( empty( $_FILES['file'] ) ) wp_send_json_error( __( 'No file uploaded.', 'customkings' ) );
+        $file = $_FILES['file'];
+        $allowed = [ 'image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml' ];
+        $max_size = 5 * 1024 * 1024; // 5MB
+        if ( ! in_array( $file['type'], $allowed ) ) wp_send_json_error( __( 'Invalid file type.', 'customkings' ) );
+        if ( $file['size'] > $max_size ) wp_send_json_error( __( 'File too large. Max 5MB.', 'customkings' ) );
+        $upload_dir = wp_upload_dir();
+        $target_dir = $upload_dir['basedir'] . '/ckpp_images/';
+        if ( ! file_exists( $target_dir ) ) {
+            wp_mkdir_p( $target_dir );
+        }
+        $filename = wp_unique_filename( $target_dir, sanitize_file_name( $file['name'] ) );
+        $target_file = $target_dir . $filename;
+        if ( ! move_uploaded_file( $file['tmp_name'], $target_file ) ) {
+            wp_send_json_error( __( 'Failed to move uploaded file.', 'customkings' ) );
+        }
+        $url = $upload_dir['baseurl'] . '/ckpp_images/' . $filename;
+        wp_send_json_success([ 'url' => $url ]);
     }
 }
 

@@ -98,4 +98,12 @@ A: In the WooCommerce order view, click the Generate Print-Ready File button in 
 A: Please open an issue on GitHub or contact support@customkings.com.au.
 
 ## License
-GPLv2 or later 
+GPLv2 or later
+
+== Changelog ==
+
+= 1.1.2 – 2025-05-17 =
+* Reliable image deletion from the Images admin page (no more blank screens or errors).
+* Personalization details (including uploaded images) always show on cart and checkout pages.
+* Updated to use the correct WooCommerce order item meta hook for compatibility.
+* Bug fixes: no duplicate field labels, improved admin error handling, minor accessibility and UI improvements. 

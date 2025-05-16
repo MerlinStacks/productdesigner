@@ -2,11 +2,12 @@
 /*
 Plugin Name: CustomKings Product Personalizer
 Plugin URI: https://customkings.com.au/
-Description: WooCommerce product personalization with live preview and print-ready files.
-Version: 1.1.1
+Description: Powerful product personalization for WooCommerce. Visual designer, live preview, image uploads, print-ready files, and more.
+Version: 1.1.2
 Author: CustomKings
 Author URI: https://customkings.com.au/
-License: GPLv2 or later
+License: GPL2
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: customkings
 Domain Path: /languages
 */
@@ -18,6 +19,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! defined( 'CUSTOMKINGS_PLUGIN_FILE' ) ) {
     define( 'CUSTOMKINGS_PLUGIN_FILE', __FILE__ );
+}
+
+if ( ! defined( 'CKPP_VERSION' ) ) {
+    define( 'CKPP_VERSION', '1.1.2' );
 }
 
 // Always load font management class so fonts are available on frontend
