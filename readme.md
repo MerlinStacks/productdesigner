@@ -134,4 +134,16 @@ GPLv2 or later
 * Accent color picker UI is now clean and accessible: only one preview box, a dedicated button, and no duplicate or hidden color boxes.
 * Preview box is keyboard accessible and can be clicked to open the color picker.
 * All debug/test text and extra UI elements have been removed from the color picker UI.
-* Bug fixes for Pickr overlay, preview, and CSS issues. 
+* Bug fixes for Pickr overlay, preview, and CSS issues.
+
+### 1.0.1
+- Enhancement: Live preview now shows uploaded images in real time, replacing image placeholders with the actual uploaded image.
+
+= 1.1.4 – 2025-06-09 =
+* Design cards in the admin now show live preview thumbnails. No more broken image icons—previews update instantly when you save a design.
+* Modern, accessible card grid for designs. Cleaner, more robust logic for preview images.
+* Fixed double/duplicate admin pages and menu items.
+* Fixed redirect logic for creating and deleting designs.
+* Fixed saving and loading of design previews.
+* Improved reliability of AJAX save/load for designer.
+* Codebase cleanup: removed legacy files and duplicate logic. All admin UI now lives in a single, modern code path. 

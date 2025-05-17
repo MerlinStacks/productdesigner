@@ -2,8 +2,8 @@
 /*
 Plugin Name: CustomKings Product Personalizer
 Plugin URI: https://customkings.com.au/
-Description: Powerful product personalization for WooCommerce. Visual designer, live preview, image uploads, print-ready files, and more.
-Version: 1.1.4
+Description: Product personalization and live preview for WooCommerce.
+Version: 1.0.1
 Author: CustomKings
 Author URI: https://customkings.com.au/
 License: GPL2
@@ -22,7 +22,7 @@ if ( ! defined( 'CUSTOMKINGS_PLUGIN_FILE' ) ) {
 }
 
 if ( ! defined( 'CKPP_VERSION' ) ) {
-    define( 'CKPP_VERSION', '1.1.4' );
+    define( 'CKPP_VERSION', '1.0.1' );
 }
 
 // Always load font management class so fonts are available on frontend
@@ -59,4 +59,7 @@ add_action('wp_head', function() {
     $color = get_option('ckpp_accent_color', '#0073aa');
     if (!preg_match('/^#[a-f0-9]{3,6}$/i', $color)) $color = '#0073aa';
     echo '<style>:root{--ckpp-accent:' . esc_attr($color) . ';}</style>';
-}); 
+});
+
+// Changelog:
+// 1.0.1: Enhancement: Live preview now shows uploaded images in real time, replacing image placeholders with the actual uploaded image. 

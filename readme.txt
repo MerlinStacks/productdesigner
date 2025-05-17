@@ -3,7 +3,7 @@ Contributors: customkings
 Tags: woocommerce, personalization, product designer, customizer, print-ready
 Requires at least: 5.8
 Tested up to: 6.2
-Stable tag: 1.1.3
+Stable tag: 1.0.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,6 +61,9 @@ Yes, admins can generate and download print-ready PDF files for each order item.
 * Preview box is keyboard accessible and can be clicked to open the color picker.
 * All debug/test text and extra UI elements have been removed from the color picker UI.
 * Bug fixes for Pickr overlay, preview, and CSS issues.
+
+= 1.0.1 =
+* Enhancement: Live preview now shows uploaded images in real time, replacing image placeholders with the actual uploaded image.
 
 == Upgrade Notice ==
 = 1.0.0 =

@@ -523,6 +523,63 @@ class CKPP_Admin_UI {
                 filemtime(dirname(__DIR__) . '/assets/admin-order.js'),
                 true
             );
+            // Register Pickr from CDN
+            wp_register_script(
+                'pickr',
+                'https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/pickr.min.js',
+                [],
+                '1.9.0',
+                true
+            );
+            wp_register_style(
+                'pickr-classic',
+                'https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/classic.min.css',
+                [],
+                '1.9.0'
+            );
+            // Register local fallback
+            wp_register_script(
+                'pickr-local',
+                plugins_url('assets/pickr.min.js', dirname(__DIR__)),
+                [],
+                '1.9.0',
+                true
+            );
+            wp_register_style(
+                'pickr-classic-local',
+                plugins_url('assets/pickr-classic.min.css', dirname(__DIR__)),
+                [],
+                '1.9.0'
+            );
+            $page = isset($_GET['page']) ? $_GET['page'] : '';
+            $design_id = isset($_GET['design_id']) ? intval($_GET['design_id']) : 0;
+            // Enqueue Pickr and designer assets only on the Designs page (edit view)
+            if ($page === 'ckpp_designs' && $design_id) {
+                wp_enqueue_script('pickr');
+                wp_enqueue_style('pickr-classic');
+                wp_enqueue_script('ckpp-designer', plugins_url('assets/designer.js', dirname(__FILE__)), ['jquery', 'pickr'], '1.0', true);
+                wp_enqueue_style('ckpp-designer', plugins_url('assets/designer.css', dirname(__FILE__)), [], '1.0');
+                // Add JS to check if Pickr loaded, and if not, load local fallback
+                add_action('admin_footer', function() {
+                    ?>
+                    <script>
+                    if (typeof Pickr === 'undefined') {
+                        var s = document.createElement('script');
+                        s.src = '<?php echo esc_js(plugins_url('assets/pickr.min.js', dirname(__DIR__))); ?>';
+                        document.head.appendChild(s);
+                        var l = document.createElement('link');
+                        l.rel = 'stylesheet';
+                        l.href = '<?php echo esc_js(plugins_url('assets/pickr-classic.min.css', dirname(__DIR__))); ?>';
+                        document.head.appendChild(l);
+                    }
+                    </script>
+                    <?php
+                });
+            }
+            // Enqueue design cards CSS only on Designs list view
+            if ($page === 'ckpp_designs' && !$design_id) {
+                wp_enqueue_style('ckpp-design-cards', plugins_url('assets/design-cards.css', dirname(__FILE__)), [], filemtime(dirname(__DIR__) . '/assets/design-cards.css'));
+            }
         }
     }
 
@@ -541,16 +598,6 @@ class CKPP_Admin_UI {
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Design deleted.', 'customkings') . '</p></div>';
         }
         if ($design_id) {
-            // Enqueue designer assets for the edit view
-            wp_enqueue_script('pickr', 'https://cdn.jsdelivr.net/npm/@simonwep/pickr', [], null, true);
-            wp_enqueue_style('pickr-classic', 'https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/classic.min.css', [], null);
-            wp_enqueue_script('ckpp-designer', plugins_url('assets/designer.js', dirname(__FILE__)), ['jquery', 'pickr'], '1.0', true);
-            wp_enqueue_style('ckpp-designer', plugins_url('assets/designer.css', dirname(__FILE__)), [], '1.0');
-            wp_localize_script('ckpp-designer', 'CKPPDesigner', [
-                'ajaxUrl' => admin_url('admin-ajax.php'),
-                'nonce' => wp_create_nonce('ckpp_designer_nonce'),
-                'designId' => $design_id,
-            ]);
             // Designer UI for editing a design
             $templates = get_posts([
                 'post_type' => 'ckpp_design',
@@ -580,8 +627,6 @@ class CKPP_Admin_UI {
             $design_title = get_the_title($design_id);
             echo '<script>window.CKPP_DESIGN_ID = ' . $design_id . '; window.CKPP_DESIGN_TITLE = ' . json_encode($design_title) . ';</script>';
         } else {
-            // Enqueue the design cards CSS
-            wp_enqueue_style('ckpp-design-cards', plugins_url('assets/design-cards.css', dirname(__FILE__)), [], filemtime(dirname(__DIR__) . '/assets/design-cards.css'));
             echo '<a href="' . esc_url( admin_url( 'admin.php?action=ckpp_create_design' ) ) . '" class="button button-primary" style="margin-bottom:1.5em;display:inline-flex;align-items:center;"><span class="dashicons dashicons-plus"></span>' . esc_html__( 'Create New Design', 'customkings' ) . '</a>';
             $designs = get_posts([ 'post_type' => 'ckpp_design', 'numberposts' => -1 ]);
             if ($designs) {
