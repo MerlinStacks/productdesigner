@@ -752,16 +752,25 @@
             const config = JSON.stringify(fabricCanvas.toJSON());
             const designId = window.CKPPDesigner.designId || 0;
             const title = window.ckppDesignName || 'Untitled Design';
+            // --- Generate preview image ---
+            let preview = '';
+            try {
+                preview = fabricCanvas.toDataURL({ format: 'png', quality: 0.7 });
+            } catch (e) {
+                if (window.CKPP_DEBUG_MODE) console.error('CKPP: Failed to generate preview image', e);
+                preview = '';
+            }
             showSaving('Saving…');
             if (window.CKPP_DEBUG_MODE) {
-                console.log('CKPP: Saving design', { designId, title, config, nonce: CKPPDesigner.nonce });
+                console.log('CKPP: Saving design', { designId, title, config, nonce: CKPPDesigner.nonce, preview });
             }
             $.post(CKPPDesigner.ajaxUrl, {
                 action: 'ckpp_save_design',
                 nonce: CKPPDesigner.nonce,
                 designId: designId,
                 title: title,
-                config: config
+                config: config,
+                preview: preview
             }, function(resp) {
                 if (window.CKPP_DEBUG_MODE) {
                     console.log('CKPP: Save response', resp);

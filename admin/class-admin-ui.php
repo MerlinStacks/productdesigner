@@ -38,6 +38,14 @@ class CKPP_Admin_UI {
             'ckpp_product_assignments',
             [ $this, 'render_product_assignments_page' ]
         );
+        add_submenu_page(
+            'ckpp_admin',
+            __( 'Designs', 'customkings' ),
+            __( 'Designs', 'customkings' ),
+            'manage_options',
+            'ckpp_designs',
+            [ $this, 'render_designs_page' ]
+        );
     }
 
     public function register_settings() {
@@ -90,6 +98,21 @@ class CKPP_Admin_UI {
                     }
                 });
             });
+        });
+        </script>
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var isDebug = <?php echo get_option('ckpp_debug_mode', false) ? 'true' : 'false'; ?>;
+            if (isDebug) {
+                var box = document.getElementById('ckpp-accent-color-preview');
+                console.log('[CKPP DEBUG] typeof Pickr:', typeof Pickr);
+                if (box) {
+                    box.style.background = '#00ff00';
+                    console.log('[CKPP DEBUG] Box found and updated:', box);
+                } else {
+                    console.log('[CKPP DEBUG] Box not found');
+                }
+            }
         });
         </script>
         <?php
@@ -344,11 +367,15 @@ class CKPP_Admin_UI {
                 </tr>
                 <tr>
                     <th scope="row">
-                        <label for="ckpp_accent_color"><?php esc_html_e( 'Accent Color', 'customkings' ); ?></label>
+                        <label><?php esc_html_e( 'Accent Color', 'customkings' ); ?></label>
                     </th>
                     <td>
-                        <input type="text" id="ckpp_accent_color" name="ckpp_accent_color" value="<?php echo esc_attr( get_option( 'ckpp_accent_color', '#fec610' ) ); ?>" class="regular-text" />
-                        <div id="ckpp-accent-color-picker"></div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div id="ckpp-accent-color-preview" aria-label="<?php esc_attr_e('Accent Color', 'customkings'); ?>" tabindex="0" style="display:inline-block;width:36px;height:36px;border-radius:6px;border:1px solid #ccc;vertical-align:middle;cursor:pointer;"></div>
+                            <button type="button" id="ckpp-accent-color-picker-btn" aria-label="<?php esc_attr_e('Pick accent color', 'customkings'); ?>" class="button" style="padding:0 10px;height:36px;min-width:36px;font-size:1.2em;line-height:36px;">🎨</button>
+                        </div>
+                        <label for="ckpp_accent_color" class="screen-reader-text"><?php esc_html_e( 'Accent Color Value', 'customkings' ); ?></label>
+                        <input type="hidden" id="ckpp_accent_color" name="ckpp_accent_color" value="<?php echo esc_attr( get_option( 'ckpp_accent_color', '#fec610' ) ); ?>" />
                         <span class="description"><?php esc_html_e( 'Choose the accent color for the plugin. Supports HEX and RGB.', 'customkings' ); ?></span>
                     </td>
                 </tr>
@@ -359,12 +386,16 @@ class CKPP_Admin_UI {
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/classic.min.css" />
         <script>
         document.addEventListener('DOMContentLoaded', function() {
+            var previewBox = document.getElementById('ckpp-accent-color-preview');
+            var hiddenInput = document.getElementById('ckpp_accent_color');
+            var pickrBtn = document.getElementById('ckpp-accent-color-picker-btn');
+            var isDebug = <?php echo get_option('ckpp_debug_mode', false) ? 'true' : 'false'; ?>;
             var pickr = Pickr.create({
-                el: '#ckpp-accent-color-picker',
+                el: pickrBtn,
                 theme: 'classic',
-                default: document.getElementById('ckpp_accent_color').value,
+                default: hiddenInput.value,
                 components: {
-                    preview: true,
+                    preview: false,
                     opacity: true,
                     hue: true,
                     interaction: {
@@ -375,17 +406,43 @@ class CKPP_Admin_UI {
                     }
                 }
             });
-            pickr.on('save', function(color) {
-                var hex = color.toHEXA().toString();
-                document.getElementById('ckpp_accent_color').value = hex;
-                pickr.hide();
+            function updatePreview(color) {
+                var hex = (color && color.toHEXA) ? color.toHEXA().toString() : (pickr.getColor() ? pickr.getColor().toHEXA().toString() : hiddenInput.value);
+                previewBox.style.setProperty('background', hex, 'important');
+                hiddenInput.value = hex;
+                if (isDebug) {
+                    console.log('[CKPP DEBUG] Updating preview to:', hex, 'color:', color, 'pickr.getColor():', pickr.getColor());
+                    console.log('[CKPP DEBUG] Preview box element:', previewBox);
+                }
+            }
+            ['init', 'show', 'change', 'changestop', 'save'].forEach(function(ev) {
+                pickr.on(ev, updatePreview);
             });
-            pickr.on('change', function(color) {
-                var hex = color.toHEXA().toString();
-                document.getElementById('ckpp_accent_color').value = hex;
+            // Set initial preview
+            updatePreview();
+            if (isDebug) {
+                console.log('[CKPP DEBUG] Pickr initialized on:', pickrBtn, 'with value:', hiddenInput.value);
+            }
+            // Allow clicking the preview box to open the color picker
+            previewBox.addEventListener('click', function() {
+                pickr.show();
             });
         });
         </script>
+        <style>
+        .pcr-app .pcr-preview {
+            width: 36px !important;
+            height: 36px !important;
+            border-radius: 6px !important;
+            border: 1px solid #ccc !important;
+            margin: 0 auto 8px auto !important;
+            box-shadow: none !important;
+        }
+        /* Hide Pickr's own trigger button */
+        .pickr .pcr-button {
+            display: none !important;
+        }
+        </style>
         <?php
     }
 
@@ -467,5 +524,92 @@ class CKPP_Admin_UI {
                 true
             );
         }
+    }
+
+    public function render_designs_page() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have permission to access this page.', 'customkings'));
+        }
+        // Add debug output
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('CKPP: render_designs_page called');
+        }
+        echo '<!-- CKPP DEBUG: class-admin-ui.php loaded at ' . __FILE__ . ' -->';
+        $design_id = isset($_GET['design_id']) ? intval($_GET['design_id']) : 0;
+        echo '<div class="wrap"><h1>' . esc_html__( 'Product Personalization Designs', 'customkings' ) . '</h1>';
+        if (isset($_GET['ckpp_deleted']) && $_GET['ckpp_deleted'] === '1') {
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Design deleted.', 'customkings') . '</p></div>';
+        }
+        if ($design_id) {
+            // Enqueue designer assets for the edit view
+            wp_enqueue_script('pickr', 'https://cdn.jsdelivr.net/npm/@simonwep/pickr', [], null, true);
+            wp_enqueue_style('pickr-classic', 'https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/classic.min.css', [], null);
+            wp_enqueue_script('ckpp-designer', plugins_url('assets/designer.js', dirname(__FILE__)), ['jquery', 'pickr'], '1.0', true);
+            wp_enqueue_style('ckpp-designer', plugins_url('assets/designer.css', dirname(__FILE__)), [], '1.0');
+            wp_localize_script('ckpp-designer', 'CKPPDesigner', [
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('ckpp_designer_nonce'),
+                'designId' => $design_id,
+            ]);
+            // Designer UI for editing a design
+            $templates = get_posts([
+                'post_type' => 'ckpp_design',
+                'numberposts' => -1,
+                's' => 'Template:',
+            ]);
+            $template_list = [];
+            foreach ($templates as $tpl) {
+                $template_list[] = [
+                    'id' => $tpl->ID,
+                    'title' => $tpl->post_title,
+                ];
+            }
+            echo '<div id="ckpp-templates-data" data-templates="' . esc_attr(json_encode($template_list)) . '" style="display:none;"></div>';
+            if (class_exists('CKPP_Fonts')) {
+                $fonts = CKPP_Fonts::get_fonts();
+                $font_list = [];
+                foreach ($fonts as $font) {
+                    $font_list[] = [
+                        'name' => $font->font_name,
+                        'url' => $font->font_file
+                    ];
+                }
+                echo '<div id="ckpp-fonts-data" data-fonts="' . esc_attr(json_encode($font_list)) . '" style="display:none;"></div>';
+            }
+            echo '<div id="ckpp-product-designer-root"></div>';
+            $design_title = get_the_title($design_id);
+            echo '<script>window.CKPP_DESIGN_ID = ' . $design_id . '; window.CKPP_DESIGN_TITLE = ' . json_encode($design_title) . ';</script>';
+        } else {
+            // Enqueue the design cards CSS
+            wp_enqueue_style('ckpp-design-cards', plugins_url('assets/design-cards.css', dirname(__FILE__)), [], filemtime(dirname(__DIR__) . '/assets/design-cards.css'));
+            echo '<a href="' . esc_url( admin_url( 'admin.php?action=ckpp_create_design' ) ) . '" class="button button-primary" style="margin-bottom:1.5em;display:inline-flex;align-items:center;"><span class="dashicons dashicons-plus"></span>' . esc_html__( 'Create New Design', 'customkings' ) . '</a>';
+            $designs = get_posts([ 'post_type' => 'ckpp_design', 'numberposts' => -1 ]);
+            if ($designs) {
+                echo '<div class="ckpp-designs-grid">';
+                foreach ($designs as $design) {
+                    $delete_url = wp_nonce_url(
+                        admin_url('admin.php?action=ckpp_delete_design&design_id=' . $design->ID),
+                        'ckpp_delete_design_' . $design->ID
+                    );
+                    $preview_url = get_post_meta($design->ID, '_ckpp_design_preview', true);
+                    echo '<div class="ckpp-design-card">';
+                    if ($preview_url && strpos($preview_url, 'data:image/png;base64,') === 0) {
+                        echo '<div class="ckpp-design-thumb"><img src="' . esc_attr($preview_url) . '" alt="' . esc_attr($design->post_title) . '" /></div>';
+                    } else {
+                        echo '<div class="ckpp-design-thumb ckpp-design-thumb-empty"><span class="dashicons dashicons-format-image"></span></div>';
+                    }
+                    echo '<div class="ckpp-design-title">' . esc_html($design->post_title) . '</div>';
+                    echo '<div class="ckpp-design-actions">';
+                    echo '<a href="' . esc_url( admin_url( 'admin.php?page=ckpp_designs&design_id=' . $design->ID ) ) . '" class="ckpp-btn ckpp-btn-secondary"><span class="dashicons dashicons-edit"></span> ' . esc_html__('Edit', 'customkings') . '</a>';
+                    echo '<a href="' . esc_url($delete_url) . '" class="ckpp-btn ckpp-btn-secondary ckpp-btn-danger" onclick="return confirm(\'' . esc_js(__('Are you sure you want to delete this design?', 'customkings')) . '\');"><span class="dashicons dashicons-trash"></span> ' . esc_html__('Delete', 'customkings') . '</a>';
+                    echo '</div>';
+                    echo '</div>';
+                }
+                echo '</div>';
+            } else {
+                echo '<p>' . esc_html__( 'No designs found.', 'customkings' ) . '</p>';
+            }
+        }
+        echo '</div>';
     }
 } 

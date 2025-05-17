@@ -3,7 +3,7 @@
 Plugin Name: CustomKings Product Personalizer
 Plugin URI: https://customkings.com.au/
 Description: Powerful product personalization for WooCommerce. Visual designer, live preview, image uploads, print-ready files, and more.
-Version: 1.1.2
+Version: 1.1.4
 Author: CustomKings
 Author URI: https://customkings.com.au/
 License: GPL2
@@ -22,7 +22,7 @@ if ( ! defined( 'CUSTOMKINGS_PLUGIN_FILE' ) ) {
 }
 
 if ( ! defined( 'CKPP_VERSION' ) ) {
-    define( 'CKPP_VERSION', '1.1.2' );
+    define( 'CKPP_VERSION', '1.1.4' );
 }
 
 // Always load font management class so fonts are available on frontend

@@ -1,5 +1,17 @@
 # CustomKings Product Personalizer – Changelog
 
+## Version 1.1.4 – 2025-06-09
+
+**What's New & Fixed:**
+- **Design Preview Thumbnails:** Design cards in the admin now show live preview thumbnails. No more broken image icons—previews update instantly when you save a design.
+- **Admin UI Polished:** Modern, accessible card grid for designs. Cleaner, more robust logic for preview images.
+- **Bug Fixes:**
+  - Fixed double/duplicate admin pages and menu items.
+  - Fixed redirect logic for creating and deleting designs.
+  - Fixed saving and loading of design previews.
+  - Improved reliability of AJAX save/load for designer.
+- **Codebase Cleanup:** Removed legacy files and duplicate logic. All admin UI now lives in a single, modern code path.
+
 ## Version 1.1.2 – 2025-05-17
 
 **What's New & Fixed:**
@@ -10,6 +22,16 @@
   - Prevent duplicate field labels in cart/checkout.
   - Improved error handling and admin feedback for image management.
   - Minor accessibility and UI improvements in admin.
+
+## Version 1.1.3 – 2025-05-18
+
+**What's New & Fixed:**
+- **Accent Color Picker UI Polished:** The accent color picker in settings now uses a single, accessible preview box and a dedicated button. No more duplicate or hidden color boxes!
+- **Accessibility & UX:** The preview box is keyboard accessible and can be clicked to open the color picker. All debug/test text and extra UI elements have been removed.
+- **Bug Fixes:**
+  - Fixed Pickr overlay and preview issues.
+  - Removed all debug/test artifacts from the color picker UI.
+  - Improved CSS to ensure only the intended UI is visible.
 
 ---
 

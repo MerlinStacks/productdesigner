@@ -28,6 +28,7 @@ class CKPP_Product_Designer {
         add_action( 'wp_ajax_ckpp_clone_design', [ $this, 'ajax_clone_design' ] );
         add_action( 'wp_ajax_ckpp_upload_image', [ $this, 'ajax_upload_image' ] );
         add_action( 'admin_action_ckpp_delete_image', [ $this, 'handle_delete_image' ] );
+        add_action( 'admin_post_ckpp_delete_image', [ $this, 'handle_delete_image' ] );
         add_action( 'admin_post_ckpp_bulk_delete_images', [ $this, 'handle_bulk_delete_images' ] );
     }
 
@@ -52,14 +53,6 @@ class CKPP_Product_Designer {
     public function add_admin_menu() {
         add_submenu_page(
             'ckpp_admin',
-            __( 'Designs', 'customkings' ),
-            __( 'Designs', 'customkings' ),
-            'manage_options',
-            'ckpp_designs',
-            [ $this, 'render_designs_page' ]
-        );
-        add_submenu_page(
-            'ckpp_admin',
             __( 'Images', 'customkings' ),
             __( 'Images', 'customkings' ),
             'manage_options',
@@ -69,76 +62,12 @@ class CKPP_Product_Designer {
     }
 
     /**
-     * Render the Designs admin page and designer UI.
-     */
-    public function render_designs_page() {
-        $design_id = isset($_GET['design_id']) ? intval($_GET['design_id']) : 0;
-        echo '<div class="wrap"><h1>' . esc_html__( 'Product Personalization Designs', 'customkings' ) . '</h1>';
-        if (isset($_GET['ckpp_deleted']) && $_GET['ckpp_deleted'] === '1') {
-            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Design deleted.', 'customkings') . '</p></div>';
-        }
-        if ($design_id) {
-            // Designer UI for editing a design
-            // Output a hidden div with all templates for JS
-            $templates = get_posts([
-                'post_type' => 'ckpp_design',
-                'numberposts' => -1,
-                's' => 'Template:',
-            ]);
-            $template_list = [];
-            foreach ($templates as $tpl) {
-                $template_list[] = [
-                    'id' => $tpl->ID,
-                    'title' => $tpl->post_title,
-                ];
-            }
-            echo '<div id="ckpp-templates-data" data-templates="' . esc_attr(json_encode($template_list)) . '" style="display:none;"></div>';
-            // Output a hidden div with all uploaded fonts for JS
-            if (class_exists('CKPP_Fonts')) {
-                $fonts = CKPP_Fonts::get_fonts();
-                $font_list = [];
-                foreach ($fonts as $font) {
-                    $font_list[] = [
-                        'name' => $font->font_name,
-                        'url' => $font->font_file
-                    ];
-                }
-                echo '<div id="ckpp-fonts-data" data-fonts="' . esc_attr(json_encode($font_list)) . '" style="display:none;"></div>';
-            }
-            echo '<div id="ckpp-product-designer-root"></div>';
-            $design_title = get_the_title($design_id);
-            echo '<script>window.CKPP_DESIGN_ID = ' . $design_id . '; window.CKPP_DESIGN_TITLE = ' . json_encode($design_title) . ';</script>';
-        } else {
-            // List and create designs
-            echo '<a href="' . esc_url( admin_url( 'admin.php?action=ckpp_create_design' ) ) . '" class="button button-primary">' . esc_html__( 'Create New Design', 'customkings' ) . '</a>';
-            $designs = get_posts([ 'post_type' => 'ckpp_design', 'numberposts' => -1 ]);
-            if ($designs) {
-                echo '<ul style="margin-top:2em;">';
-                foreach ($designs as $design) {
-                    $delete_url = wp_nonce_url(
-                        admin_url('admin.php?action=ckpp_delete_design&design_id=' . $design->ID),
-                        'ckpp_delete_design_' . $design->ID
-                    );
-                    echo '<li>';
-                    echo '<a href="' . esc_url( admin_url( 'admin.php?page=ckpp_designs&design_id=' . $design->ID ) ) . '">' . esc_html( $design->post_title ) . '</a>';
-                    echo ' <a href="' . esc_url($delete_url) . '" style="color:#a00; margin-left:12px;" onclick="return confirm(\'Are you sure you want to delete this design?\');">[' . esc_html__('Delete', 'customkings') . ']</a>';
-                    echo '</li>';
-                }
-                echo '</ul>';
-            } else {
-                echo '<p>' . esc_html__( 'No designs found.', 'customkings' ) . '</p>';
-            }
-        }
-        echo '</div>';
-    }
-
-    /**
      * Enqueue assets for the designer admin page.
      *
      * @param string $hook
      */
     public function enqueue_assets( $hook ) {
-        if ( isset($_GET['page']) && $_GET['page'] === 'ckpp_designs' ) {
+        if ( isset($_GET['page']) && $_GET['page'] === 'ckpp_images' ) {
             // Register Pickr if not already registered
             if (!wp_script_is('pickr', 'registered')) {
                 wp_register_script('pickr', 'https://cdn.jsdelivr.net/npm/@simonwep/pickr', [], null, true);
@@ -166,12 +95,19 @@ class CKPP_Product_Designer {
         $design_id = intval( $_POST['designId'] );
         $title = sanitize_text_field( $_POST['title'] );
         $config = wp_unslash( $_POST['config'] );
+        $preview = isset($_POST['preview']) ? $_POST['preview'] : '';
         if ( $design_id ) {
             wp_update_post([ 'ID' => $design_id, 'post_title' => $title ]);
             update_post_meta( $design_id, '_ckpp_design_config', $config );
+            if ($preview && strpos($preview, 'data:image/png;base64,') === 0) {
+                update_post_meta( $design_id, '_ckpp_design_preview', $preview );
+            }
         } else {
             $design_id = wp_insert_post([ 'post_type' => 'ckpp_design', 'post_title' => $title, 'post_status' => 'publish' ]);
             update_post_meta( $design_id, '_ckpp_design_config', $config );
+            if ($preview && strpos($preview, 'data:image/png;base64,') === 0) {
+                update_post_meta( $design_id, '_ckpp_design_preview', $preview );
+            }
         }
         wp_send_json_success([ 'designId' => $design_id ]);
     }

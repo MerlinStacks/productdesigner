@@ -10,7 +10,10 @@ https://customkings.com.au/
 This plugin enables e-commerce store customers to personalize specific products by filling in admin-defined placeholders before adding them to the cart. It features a visual admin designer, real-time preview, and generates print-ready files for order fulfillment.
 
 **New in this version:**
-- Major admin UI color update: All blue accents replaced with gold (#fec610) for a modern, branded look.
+- Accent color picker UI is now clean and accessible: only one preview box, a dedicated button, and no duplicate or hidden color boxes.
+- Preview box is keyboard accessible and can be clicked to open the color picker.
+- All debug/test text and extra UI elements have been removed from the color picker UI.
+- Bug fixes for Pickr overlay, preview, and CSS issues.
 - Clipart section now displays as a responsive grid gallery (max 8 columns, fixed card size) with large image previews and a tag filter.
 - Clipart cards feature a new accessible delete icon (red outline circle with an 'x', fills on hover) that overlaps the image in the top-right corner.
 - Improved accessibility, keyboard navigation, and visual polish throughout the admin interface.
@@ -24,6 +27,25 @@ This plugin enables e-commerce store customers to personalize specific products 
 - **Visual Images Grid:** The Images admin area now uses a visual grid layout, just like the Clipart section, making it easier to browse and manage uploads.
 - **Better Documentation:** The changelog and documentation are now more user-friendly and easier to read.
 - **Accessibility & Bug Fixes:** Various small bugs and accessibility improvements throughout the admin UI.
+
+## What's New in 1.1.3 (2025-05-18)
+- **Accent Color Picker UI Polished:** The accent color picker in settings now uses a single, accessible preview box and a dedicated button. No more duplicate or hidden color boxes!
+- **Accessibility & UX:** The preview box is keyboard accessible and can be clicked to open the color picker. All debug/test text and extra UI elements have been removed.
+- **Bug Fixes:**
+  - Fixed Pickr overlay and preview issues.
+  - Removed all debug/test artifacts from the color picker UI.
+  - Improved CSS to ensure only the intended UI is visible.
+
+## Version 1.1.4 – 2025-06-09
+
+**What's New & Fixed:**
+- Design cards in the admin now show live preview thumbnails. No more broken image icons—previews update instantly when you save a design.
+- Modern, accessible card grid for designs. Cleaner, more robust logic for preview images.
+- Fixed double/duplicate admin pages and menu items.
+- Fixed redirect logic for creating and deleting designs.
+- Fixed saving and loading of design previews.
+- Improved reliability of AJAX save/load for designer.
+- Codebase cleanup: removed legacy files and duplicate logic. All admin UI now lives in a single, modern code path.
 
 ## Installation
 1. Upload the plugin files to the `/wp-content/plugins/customkings-product-personalizer` directory, or install the plugin through the WordPress plugins screen directly.
@@ -106,4 +128,10 @@ GPLv2 or later
 * Reliable image deletion from the Images admin page (no more blank screens or errors).
 * Personalization details (including uploaded images) always show on cart and checkout pages.
 * Updated to use the correct WooCommerce order item meta hook for compatibility.
-* Bug fixes: no duplicate field labels, improved admin error handling, minor accessibility and UI improvements. 
+* Bug fixes: no duplicate field labels, improved admin error handling, minor accessibility and UI improvements.
+
+= 1.1.3 – 2025-05-18 =
+* Accent color picker UI is now clean and accessible: only one preview box, a dedicated button, and no duplicate or hidden color boxes.
+* Preview box is keyboard accessible and can be clicked to open the color picker.
+* All debug/test text and extra UI elements have been removed from the color picker UI.
+* Bug fixes for Pickr overlay, preview, and CSS issues. 
