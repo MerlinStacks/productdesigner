@@ -11,13 +11,27 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class CKPP_Admin_UI {
     public function __construct() {
+        // wp_die("DEBUG: CONSTRUCTOR STAGE 1 - Start");
+
         add_action( 'admin_menu', [ $this, 'register_menu' ] );
+        // wp_die("DEBUG: CONSTRUCTOR STAGE 2 - After admin_menu");
+
         add_action( 'admin_init', [ $this, 'register_settings' ] );
+        // wp_die("DEBUG: CONSTRUCTOR STAGE 3 - After admin_init");
+
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_styles' ] );
-        if ( is_admin() ) {
-            add_action( 'wp_ajax_ckpp_get_assignments', [ $this, 'ajax_get_assignments' ] );
-            add_action( 'wp_ajax_ckpp_save_assignment', [ $this, 'ajax_save_assignment' ] );
-        }
+        // wp_die("DEBUG: CONSTRUCTOR STAGE 4 - After admin_enqueue_scripts");
+
+        add_action( 'wp_ajax_ckpp_get_assignments', [ $this, 'ajax_get_assignments' ] );
+        // wp_die("DEBUG: CONSTRUCTOR STAGE 5 - After wp_ajax_ckpp_get_assignments");
+
+        add_action( 'wp_ajax_ckpp_save_assignment', [ $this, 'ajax_save_assignment' ] );
+        // wp_die("DEBUG: CONSTRUCTOR STAGE 6 - After wp_ajax_ckpp_save_assignment");
+        
+        // The admin-post action is still commented out for now
+        add_action( 'admin_post_ckpp_wipe_reinstall', [ $this, 'handle_wipe_reinstall' ] );
+        
+        // wp_die("DEBUG: CONSTRUCTOR STAGE 7 - After ALL add_action calls (except admin_post)");
     }
 
     public function register_menu() {
@@ -98,21 +112,6 @@ class CKPP_Admin_UI {
                     }
                 });
             });
-        });
-        </script>
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var isDebug = <?php echo get_option('ckpp_debug_mode', false) ? 'true' : 'false'; ?>;
-            if (isDebug) {
-                var box = document.getElementById('ckpp-accent-color-preview');
-                console.log('[CKPP DEBUG] typeof Pickr:', typeof Pickr);
-                if (box) {
-                    box.style.background = '#00ff00';
-                    console.log('[CKPP DEBUG] Box found and updated:', box);
-                } else {
-                    console.log('[CKPP DEBUG] Box not found');
-                }
-            }
         });
         </script>
         <?php
@@ -382,6 +381,67 @@ class CKPP_Admin_UI {
             </table>
             <?php submit_button(); ?>
         </form>
+        <?php if ( get_option('ckpp_debug_mode', false) ) : ?>
+        <div class="ckpp-danger-zone" style="margin-top:2em;border-top:1px solid #ddd;padding-top:1em;">
+            <h3 style="color:#a00;margin-bottom:10px;">
+                <?php esc_html_e('Danger Zone: Data Reset', 'customkings'); ?>
+            </h3>
+            <p class="description" style="color:#a00;margin-bottom:15px;">
+                <?php esc_html_e('This will delete all plugin data and recreate the database tables. This action cannot be undone.', 'customkings'); ?>
+            </p>
+            
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="ckpp-wipe-form">
+                <?php wp_nonce_field('ckpp_wipe_reinstall'); ?>
+                <input type="hidden" name="action" value="ckpp_wipe_reinstall">
+                <button type="submit" id="ckpp-wipe-btn" class="button button-secondary" style="background:#a00;color:white;border-color:#a00;">
+                    <?php esc_html_e('Wipe & Reinstall Plugin Data', 'customkings'); ?>
+                </button>
+            </form>
+            
+            <?php if (isset($_GET['ckpp_wiped']) && $_GET['ckpp_wiped'] === '1'): ?>
+                <div class="notice notice-success is-dismissible" style="margin-top:15px;">
+                    <p><?php esc_html_e('Plugin data has been wiped and reinstalled successfully.', 'customkings'); ?></p>
+                    <button type="button" class="notice-dismiss">
+                        <span class="screen-reader-text"><?php esc_html_e('Dismiss this notice.', 'customkings'); ?></span>
+                    </button>
+                </div>
+            <?php elseif (isset($_GET['ckpp_wipe_error'])): ?>
+                <div class="notice notice-error is-dismissible" style="margin-top:15px;">
+                    <p><?php echo esc_html(__('Error during operation: ', 'customkings') . urldecode($_GET['ckpp_wipe_error'])); ?></p>
+                    <button type="button" class="notice-dismiss">
+                        <span class="screen-reader-text"><?php esc_html_e('Dismiss this notice.', 'customkings'); ?></span>
+                    </button>
+                </div>
+            <?php endif; ?>
+            
+            <script>
+            jQuery(document).ready(function($) {
+                // Make notices dismissible
+                $('.is-dismissible .notice-dismiss').on('click', function() {
+                    $(this).parent().fadeOut(200);
+                });
+                
+                // Add confirmation to form submission
+                $('#ckpp-wipe-form').on('submit', function(e) {
+                    // First confirmation
+                    if (!confirm('<?php echo esc_js(__('Are you sure you want to wipe ALL plugin data? This cannot be undone.', 'customkings')); ?>')) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    
+                    // Second confirmation
+                    if (!confirm('<?php echo esc_js(__('Please confirm again: This will permanently delete all plugin data and cannot be recovered. Continue?', 'customkings')); ?>')) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    
+                    $('#ckpp-wipe-btn').prop('disabled', true).text('<?php echo esc_js(__('Processing...', 'customkings')); ?>');
+                    return true;
+                });
+            });
+            </script>
+        </div>
+        <?php endif; ?>
         <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr"></script>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/classic.min.css" />
         <script>
@@ -424,8 +484,12 @@ class CKPP_Admin_UI {
                 console.log('[CKPP DEBUG] Pickr initialized on:', pickrBtn, 'with value:', hiddenInput.value);
             }
             // Allow clicking the preview box to open the color picker
-            previewBox.addEventListener('click', function() {
-                pickr.show();
+            previewBox.addEventListener('click', function() { pickr.show(); });
+            previewBox.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    pickr.show();
+                }
             });
         });
         </script>
@@ -597,6 +661,10 @@ class CKPP_Admin_UI {
         if (isset($_GET['ckpp_deleted']) && $_GET['ckpp_deleted'] === '1') {
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Design deleted.', 'customkings') . '</p></div>';
         }
+        
+        // Create designer nonce
+        $designer_nonce = wp_create_nonce('ckpp_designer_nonce');
+        
         if ($design_id) {
             // Designer UI for editing a design
             $templates = get_posts([
@@ -625,8 +693,26 @@ class CKPP_Admin_UI {
             }
             echo '<div id="ckpp-product-designer-root"></div>';
             $design_title = get_the_title($design_id);
-            echo '<script>window.CKPP_DESIGN_ID = ' . $design_id . '; window.CKPP_DESIGN_TITLE = ' . json_encode($design_title) . ';</script>';
+            // Properly initialize the designer JS variables
+            echo '<script>
+                window.CKPP_DESIGN_ID = ' . $design_id . '; 
+                window.CKPP_DESIGN_TITLE = ' . json_encode($design_title) . ';
+                window.CKPP_DEBUG_MODE = ' . (get_option('ckpp_debug_mode', false) ? 'true' : 'false') . ';
+                window.CKPPDesigner = {
+                    ajaxUrl: "' . esc_js(admin_url('admin-ajax.php')) . '",
+                    nonce: "' . esc_js($designer_nonce) . '",
+                    designId: ' . $design_id . '
+                };
+            </script>';
         } else {
+            // Initialize JS variables for the designs list view
+            echo '<script>
+                window.CKPP_DEBUG_MODE = ' . (get_option('ckpp_debug_mode', false) ? 'true' : 'false') . ';
+                window.CKPPDesigner = {
+                    ajaxUrl: "' . esc_js(admin_url('admin-ajax.php')) . '",
+                    nonce: "' . esc_js($designer_nonce) . '"
+                };
+            </script>';
             echo '<a href="' . esc_url( admin_url( 'admin.php?action=ckpp_create_design' ) ) . '" class="button button-primary" style="margin-bottom:1.5em;display:inline-flex;align-items:center;"><span class="dashicons dashicons-plus"></span>' . esc_html__( 'Create New Design', 'customkings' ) . '</a>';
             $designs = get_posts([ 'post_type' => 'ckpp_design', 'numberposts' => -1 ]);
             if ($designs) {
@@ -656,5 +742,170 @@ class CKPP_Admin_UI {
             }
         }
         echo '</div>';
+    }
+
+    /**
+     * Handle the wipe & reinstall action from admin-post.php
+     */
+    public function handle_wipe_reinstall() {
+        // wp_die("DEBUG: handle_wipe_reinstall function was reached. If you see this, the problem is AFTER this line.");
+        
+        // Check #1: User Capabilities
+        if (!current_user_can('manage_options')) {
+            wp_die(__('ERROR: Insufficient permissions to perform this action.', 'customkings'), __('Permission Denied', 'customkings'), ['response' => 403]);
+        }
+        
+        // Check #2: Nonce Verification
+        if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'ckpp_wipe_reinstall' ) ) {
+            wp_die( __('ERROR: Security check (nonce verification) failed. Please go back, refresh the page, and try again. Ensure cookies are enabled.', 'customkings'), __('Security Check Failed', 'customkings'), ['response' => 403]);
+        }
+        
+        // Check #3: Action Parameter
+        if ( !isset($_POST['action']) || $_POST['action'] !== 'ckpp_wipe_reinstall' ) {
+             wp_die( __("ERROR: The required 'action' parameter for processing this request is missing or incorrect.", 'customkings'), __('Request Routing Error', 'customkings'), ['response' => 400]);
+        }
+
+        // Check #4: Debug Mode
+        if (!get_option('ckpp_debug_mode', false)) {
+            $referer_url = wp_get_referer();
+            $error_msg = __('Debug mode must be enabled to perform this data reset operation.', 'customkings');
+            if ($referer_url) {
+                wp_redirect(add_query_arg('ckpp_wipe_error', urlencode($error_msg), $referer_url));
+            } else {
+                wp_die($error_msg . __(' (Could not determine a page to redirect back to.)', 'customkings'), __('Debug Mode Required', 'customkings'), ['response' => 400]);
+            }
+            exit;
+        }
+        // wp_die("DEBUG: handle_wipe_reinstall function was reached and initial checks passed.");
+        
+        // Initialize WP_Filesystem
+        global $wp_filesystem;
+        if (empty($wp_filesystem)) {
+            if (!function_exists('WP_Filesystem')) {
+                require_once ABSPATH . '/wp-admin/includes/file.php';
+            }
+            if (!WP_Filesystem()) {
+                 $referer_url = wp_get_referer();
+                 $error_msg = __('Could not initialize WordPress Filesystem API. This is required for file operations.', 'customkings');
+                 if ($referer_url) {
+                    wp_redirect(add_query_arg('ckpp_wipe_error', urlencode($error_msg), $referer_url));
+                 } else {
+                    wp_die($error_msg, __('Filesystem Error', 'customkings'), ['response' => 500]);
+                 }
+                 exit;
+            }
+        }
+
+        try {
+            global $wpdb;
+            
+            // Delete designs
+            $designs = get_posts([
+                'post_type' => 'ckpp_design',
+                'numberposts' => -1,
+                'fields' => 'ids',
+                'post_status' => 'any'
+            ]);
+            
+            foreach ($designs as $design_id) {
+                wp_delete_post($design_id, true);
+            }
+            
+            // Clean product meta
+            $wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_key = '_ckpp_design_id'");
+            $wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_key LIKE '_ckpp_design_%'");
+            
+            // Clean order meta
+            if (class_exists('WooCommerce')) {
+                $wpdb->query("DELETE FROM {$wpdb->prefix}woocommerce_order_itemmeta WHERE meta_key = '_ckpp_personalization_data'");
+                $wpdb->query("DELETE FROM {$wpdb->prefix}woocommerce_order_itemmeta WHERE meta_key = '_ckpp_print_file_url'");
+            }
+            
+            // Drop tables
+            $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}ckpp_fonts");
+            $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}ckpp_clipart");
+            $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}ckpp_clipart_tags");
+
+            // Delete uploaded files and directories
+            $upload_dir_info = wp_upload_dir();
+            $ckpp_dirs_to_delete = [
+                $upload_dir_info['basedir'] . '/ckpp_fonts',
+                $upload_dir_info['basedir'] . '/ckpp_clipart',
+                $upload_dir_info['basedir'] . '/ckpp_customer_uploads',
+                $upload_dir_info['basedir'] . '/ckpp_print_files',
+            ];
+            
+            foreach ($ckpp_dirs_to_delete as $dir_path) {
+                if ($wp_filesystem->exists($dir_path)) {
+                    $wp_filesystem->delete($dir_path, true); // true for recursive deletion
+                }
+            }
+            
+            // Reset options
+            delete_option('ckpp_enabled');
+            delete_option('ckpp_license_key');
+            delete_option('ckpp_accent_color');
+            
+            // Recreate tables
+            if (class_exists('CKPP_Fonts')) {
+                CKPP_Fonts::create_table();
+            }
+            
+            if (class_exists('CKPP_Clipart')) {
+                CKPP_Clipart::create_tables();
+            }
+
+            // Recreate directories (WP_Filesystem API handles permissions)
+             foreach ($ckpp_dirs_to_delete as $dir_path) {
+                if (!$wp_filesystem->exists($dir_path)) {
+                    $wp_filesystem->mkdir($dir_path);
+                }
+            }
+            
+            // Redirect back to the settings page with success message
+            $referer_url = wp_get_referer();
+            if ($referer_url) {
+                 wp_redirect(add_query_arg('ckpp_wiped', '1', $referer_url));
+            } else {
+                 // Fallback if no referer, though admin-post should have one
+                 wp_die(__('SUCCESS: Plugin data wiped and reinstalled. Could not redirect automatically.', 'customkings'), __('Operation Successful', 'customkings'), ['response' => 200]);
+            }
+            exit;
+        }
+        catch (Exception $e) {
+            $referer_url = wp_get_referer();
+            $error_msg = __('An unexpected error occurred during the data reset operation:', 'customkings') . ' ' . $e->getMessage();
+             if ($referer_url) {
+                wp_redirect(add_query_arg('ckpp_wipe_error', urlencode($error_msg), $referer_url));
+             } else {
+                wp_die($error_msg, __('Operation Failed', 'customkings'), ['response' => 500]);
+             }
+            exit;
+        }
+    }
+
+    /**
+     * Helper function to recursively delete a directory and its contents using WP_Filesystem.
+     *
+     * @param string $dir Directory path to delete.
+     * @return bool True on success, false on failure.
+     */
+    private function delete_directory_recursively($dir) {
+        global $wp_filesystem;
+        if (empty($wp_filesystem)) {
+            require_once ABSPATH . '/wp-admin/includes/file.php';
+            WP_Filesystem();
+        }
+
+        if (!$wp_filesystem->exists($dir)) {
+            return true; // Directory doesn't exist, so success.
+        }
+
+        if (!$wp_filesystem->is_dir($dir)) {
+            return $wp_filesystem->delete($dir); // It's a file, delete it.
+        }
+
+        // It's a directory, delete it recursively.
+        return $wp_filesystem->delete($dir, true);
     }
 } 

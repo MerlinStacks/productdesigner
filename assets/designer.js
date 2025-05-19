@@ -1,21 +1,212 @@
 // assets/designer.js
 (function($) {
+    // Global font cache to track loaded fonts
+    window.CKPP_LOADED_FONTS = window.CKPP_LOADED_FONTS || {};
+    
+    /**
+     * Preload all custom fonts from the data-fonts attribute
+     * Returns a promise that resolves when all fonts are loaded
+     */
+    function preloadAllFonts() {
+        var msgSpan = document.getElementById('ckpp-template-msg');
+        var fontsDataDiv = document.getElementById('ckpp-fonts-data');
+        var uploadedFonts = [];
+        
+        // Set initial loading message
+        if (msgSpan) msgSpan.textContent = 'Loading fonts...';
+        
+        if (!fontsDataDiv) {
+            if (window.CKPP_DEBUG_MODE) {
+                console.log('CKPP Debug: No fonts data found, skipping preload');
+            }
+            if (msgSpan) msgSpan.textContent = '';
+            return Promise.resolve(); // No fonts to load
+        }
+        
+        try {
+            uploadedFonts = JSON.parse(fontsDataDiv.getAttribute('data-fonts') || '[]');
+        } catch(e) {
+            if (window.CKPP_DEBUG_MODE) {
+                console.error('CKPP Debug: Error parsing fonts data', e);
+            }
+            if (msgSpan) msgSpan.textContent = '';
+            return Promise.resolve(); // Error parsing fonts
+        }
+        
+        if (!uploadedFonts.length) {
+            if (window.CKPP_DEBUG_MODE) {
+                console.log('CKPP Debug: No custom fonts to preload');
+            }
+            if (msgSpan) msgSpan.textContent = '';
+            return Promise.resolve(); // No fonts to load
+        }
+        
+        if (window.CKPP_DEBUG_MODE) {
+            console.log('CKPP Debug: Preloading', uploadedFonts.length, 'custom fonts');
+        }
+        
+        // Create container for font preloading elements
+        var preloadContainer = document.createElement('div');
+        preloadContainer.id = 'ckpp-font-preload-container';
+        preloadContainer.style.position = 'absolute';
+        preloadContainer.style.visibility = 'hidden';
+        preloadContainer.style.top = '-9999px';
+        document.body.appendChild(preloadContainer);
+        
+        // For each font, add the @font-face rule if not exists
+        uploadedFonts.forEach(function(font) {
+            var styleId = 'ckpp-font-' + font.name.replace(/[^a-zA-Z0-9_-]/g, '');
+            if (!document.getElementById(styleId)) {
+                var style = document.createElement('style');
+                style.id = styleId;
+                style.textContent = `@font-face { font-family: '${font.name}'; src: url('${font.url}'); font-display: swap; }`;
+                document.head.appendChild(style);
+                
+                if (window.CKPP_DEBUG_MODE) {
+                    console.log('CKPP Debug: Added @font-face for', font.name);
+                }
+            }
+            
+            // Create a forcing element for each font
+            var preloadDiv = document.createElement('div');
+            preloadDiv.style.fontFamily = "'" + font.name + "'";
+            preloadDiv.innerText = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789';
+            preloadContainer.appendChild(preloadDiv);
+        });
+        
+        // Function to load a single font
+        function loadFont(fontName) {
+            // Skip if already loaded
+            if (window.CKPP_LOADED_FONTS[fontName]) {
+                return Promise.resolve();
+            }
+            
+            // Use Font Loading API if available
+            if (document.fonts && document.fonts.load) {
+                return document.fonts.load('16px "' + fontName + '"')
+                    .then(function(loadedFonts) {
+                        window.CKPP_LOADED_FONTS[fontName] = true;
+                        if (window.CKPP_DEBUG_MODE) {
+                            console.log('CKPP Debug: Preloaded font via API:', fontName);
+                        }
+                        return Promise.resolve();
+                    })
+                    .catch(function(err) {
+                        if (window.CKPP_DEBUG_MODE) {
+                            console.warn('CKPP Debug: Font API load error for', fontName, err);
+                        }
+                        // Mark as loaded anyway, we'll try to use it
+                        window.CKPP_LOADED_FONTS[fontName] = true;
+                        return Promise.resolve();
+                    });
+            } else {
+                // Fallback for browsers without Font API
+                return new Promise(function(resolve) {
+                    if (window.CKPP_DEBUG_MODE) {
+                        console.log('CKPP Debug: Font API not available, using timeout for', fontName);
+                    }
+                    setTimeout(function() {
+                        window.CKPP_LOADED_FONTS[fontName] = true;
+                        resolve();
+                    }, 100);
+                });
+            }
+        }
+        
+        // Update loading message to show progress
+        function updateLoadingMessage(current, total) {
+            if (msgSpan) {
+                msgSpan.textContent = `Loading fonts (${current}/${total})...`;
+            }
+        }
+        
+        // Load fonts sequentially with progress updates
+        return uploadedFonts.reduce(function(promise, font, index) {
+            return promise.then(function() {
+                updateLoadingMessage(index, uploadedFonts.length);
+                return loadFont(font.name);
+            });
+        }, Promise.resolve()).then(function() {
+            // All fonts loaded
+            if (window.CKPP_DEBUG_MODE) {
+                console.log('CKPP Debug: All fonts preloaded successfully');
+            }
+            
+            // Clear loading message
+            if (msgSpan) {
+                msgSpan.textContent = 'Fonts loaded!';
+                setTimeout(function() {
+                    if (msgSpan && msgSpan.textContent === 'Fonts loaded!') {
+                        msgSpan.textContent = '';
+                    }
+                }, 1000);
+            }
+            
+            // Clean up the preload container after a delay
+            setTimeout(function() {
+                if (preloadContainer && preloadContainer.parentNode) {
+                    preloadContainer.parentNode.removeChild(preloadContainer);
+                }
+            }, 1000);
+            
+            return Promise.resolve();
+        });
+    }
+    
     function renderMinimalDesigner() {
         var root = document.getElementById('ckpp-product-designer-root') || document.getElementById('ckpp-designer-modal');
-        if (!root) return;
+        if (!root) {
+            if (window.CKPP_DEBUG_MODE) {
+                console.log('CKPP Debug: Designer root element not found, skipping initialization');
+            }
+            return;
+        }
+        
+        // Check if we have an initial config to load
+        var initialConfig = null;
+        if (window.CKPP_INITIAL_CONFIG) {
+            try {
+                if (typeof window.CKPP_INITIAL_CONFIG === 'string') {
+                    initialConfig = JSON.parse(window.CKPP_INITIAL_CONFIG);
+                    if (window.CKPP_DEBUG_MODE) {
+                        console.log('CKPP Debug: Parsed initial config from JSON string');
+                    }
+                } else if (typeof window.CKPP_INITIAL_CONFIG === 'object') {
+                    initialConfig = window.CKPP_INITIAL_CONFIG;
+                    if (window.CKPP_DEBUG_MODE) {
+                        console.log('CKPP Debug: Using initial config object directly');
+                    }
+                }
+            } catch (e) {
+                console.error('CKPP: Error parsing initial config', e);
+                initialConfig = null;
+            }
+        }
+        
         // Make designName a property of window so it's accessible everywhere
         window.ckppDesignName = window.CKPP_DESIGN_TITLE || 'Untitled Design';
+        
         // Before root.innerHTML assignment, set the body background to #fafbfc
         document.body.style.background = '#fafbfc';
+        
         // --- Template UI ---
         var templatesDataDiv = document.getElementById('ckpp-templates-data');
         var templates = [];
         if (templatesDataDiv) {
-            try { templates = JSON.parse(templatesDataDiv.getAttribute('data-templates') || '[]'); } catch(e) { templates = []; }
+            try { 
+                templates = JSON.parse(templatesDataDiv.getAttribute('data-templates') || '[]'); 
+            } catch(e) { 
+                templates = []; 
+                if (window.CKPP_DEBUG_MODE) {
+                    console.error('CKPP Debug: Error parsing templates data', e);
+                }
+            }
         }
+        
         var templateOptions = templates.map(function(t) {
             return `<option value="${t.id}">${t.title.replace('Template: ', '')}</option>`;
         }).join('');
+        
         var templateUI = `
             <div style="display:flex; align-items:center; gap:16px; margin-bottom:18px;">
                 <label for='ckpp-design-name' style='font-size:16px;font-weight:bold;'>Design Name:</label>
@@ -32,6 +223,7 @@
             </div>
         `;
         // --- End Template UI ---
+        
         // --- Tools Sidebar ---
         var toolsSidebar = `
             <div style="display:flex; flex-direction:column; gap:16px;">
@@ -43,6 +235,7 @@
             </div>
         `;
         // --- End Tools Sidebar ---
+        
         root.innerHTML = templateUI + `
             <div style=\"background:#fafbfc; padding:32px; border-radius:18px; box-shadow:0 2px 12px rgba(0,0,0,0.04); max-width:1100px; margin:32px auto;\">
               <div style=\"display:flex; gap:32px; align-items:flex-start;\">
@@ -68,6 +261,7 @@
               </div>
             </div>
         `;
+        
         // Attach reset canvas event handler immediately after HTML injection
         var resetBtn = document.getElementById('ckpp-reset-canvas');
         if (resetBtn) {
@@ -83,76 +277,61 @@
             };
         } else {
             if (window.CKPP_DEBUG_MODE) {
-                console.warn('CKPP: Reset Canvas button not found in DOM when trying to attach event handler.');
+                console.warn('CKPP Debug: Reset Canvas button not found in DOM when trying to attach event handler.');
             }
         }
+        
+        if (window.CKPP_DEBUG_MODE) {
+            console.log('CKPP Debug: Initializing minimal designer, has config:', !!initialConfig);
+        }
+        
         // Wait for Fabric.js to be loaded
         function initAfterDOM() {
             var canvasEl = document.getElementById('ckpp-canvas');
             if (!canvasEl) {
                 if (window.CKPP_DEBUG_MODE) {
-                    console.error('CKPP: Canvas element not found after HTML injection.');
+                    console.error('CKPP Debug: Canvas element not found after HTML injection.');
                 }
                 return;
             }
+            
             if (typeof fabric === 'undefined') {
                 var script = document.createElement('script');
                 script.src = 'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js';
-                script.onload = function() { setupMinimalDesigner(); };
+                script.onload = function() { 
+                    setupMinimalDesigner(initialConfig); 
+                };
                 document.body.appendChild(script);
             } else {
-                setupMinimalDesigner();
+                setupMinimalDesigner(initialConfig);
             }
         }
+        
         setTimeout(initAfterDOM, 0);
     }
-    function setupMinimalDesigner() {
+    function setupMinimalDesigner(initialConfig) {
         let lastSaveStatus = '';
         let saveTimeout = null;
         var fabricCanvas = new fabric.Canvas('ckpp-canvas');
         window.ckppFabricCanvas = fabricCanvas;
-        // Load initial config if present
-        if (window.CKPP_INITIAL_CONFIG) {
+        
+        // If we have an initial configuration, load it
+        if (initialConfig) {
             try {
-                var configObj = typeof window.CKPP_INITIAL_CONFIG === 'string' ? JSON.parse(window.CKPP_INITIAL_CONFIG) : window.CKPP_INITIAL_CONFIG;
-                // Inject @font-face for all custom fonts used in config
-                var fontsDataDiv = document.getElementById('ckpp-fonts-data');
-                var uploadedFonts = [];
-                if (fontsDataDiv) {
-                    try { uploadedFonts = JSON.parse(fontsDataDiv.getAttribute('data-fonts') || '[]'); } catch(e) { uploadedFonts = []; }
-                }
-                var usedFonts = new Set();
-                if (configObj.objects && Array.isArray(configObj.objects)) {
-                    configObj.objects.forEach(function(obj) {
-                        if ((obj.type === 'i-text' || obj.type === 'textbox' || obj.type === 'text') && obj.fontFamily) {
-                            usedFonts.add(obj.fontFamily);
-                        }
-                    });
-                }
-                usedFonts.forEach(function(fontName) {
-                    var customFont = uploadedFonts.find(function(f) { return f.name === fontName; });
-                    if (customFont) {
-                        var styleId = 'ckpp-font-' + customFont.name.replace(/[^a-zA-Z0-9_-]/g, '');
-                        if (!document.getElementById(styleId)) {
-                            var style = document.createElement('style');
-                            style.id = styleId;
-                            style.textContent = `@font-face { font-family: '${customFont.name}'; src: url('${customFont.url}'); font-display: swap; }`;
-                            document.head.appendChild(style);
-                        }
-                    }
-                });
-                fabricCanvas.loadFromJSON(configObj, function() {
+                fabricCanvas.loadFromJSON(initialConfig, function() {
                     fabricCanvas.renderAll();
                     if (window.CKPP_DEBUG_MODE) {
-                        console.log('CKPP: Loaded config into canvas', configObj);
+                        console.log('CKPP Debug: Successfully loaded initial canvas configuration');
                     }
                 });
             } catch (e) {
-                if (window.CKPP_DEBUG_MODE) {
-                    console.error('CKPP: Failed to parse/load config', e);
-                }
+                console.error('CKPP: Error loading initial canvas configuration', e);
             }
         }
+        
+        // Configure Fabric.js
+        fabricCanvas.selection = false;
+        
         // --- Layers Panel Logic ---
         function updateLayersPanel() {
             var layersDiv = document.getElementById('ckpp-layers-panel');
@@ -391,11 +570,35 @@
             var nameInput = document.getElementById('ckpp-prop-name');
             if (nameInput) {
                 nameInput.oninput = function() {
+                    // Update the object with the new label
                     sel.label = nameInput.value;
+                    
+                    // Force canvas redraw
                     fabricCanvas.requestRenderAll();
+                    
+                    // Update layers panel to reflect the new name
                     updateLayersPanel();
-                    fabricCanvas.fire('object:modified', { target: sel });
+                    
+                    // Trigger debounced save
+                    if (saveTimeout) clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(function() {
+                        fabricCanvas.fire('object:modified', { target: sel });
+                        if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
+                    }, 300);
                 };
+                
+                // Also add Enter key support
+                nameInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        sel.label = nameInput.value;
+                        fabricCanvas.requestRenderAll();
+                        updateLayersPanel();
+                        fabricCanvas.fire('object:modified', { target: sel });
+                        if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
+                        nameInput.blur();
+                    }
+                });
             }
             // Size
             var wInput = document.getElementById('ckpp-prop-w');
@@ -419,62 +622,221 @@
             if (fontFamilyInput) {
                 fontFamilyInput.onchange = function() {
                     var selectedFont = fontFamilyInput.value;
-                    // If custom font, inject @font-face if not already present
+                    var msgSpan = document.getElementById('ckpp-template-msg');
+                    
+                    // Show status message to indicate processing
+                    if (msgSpan) msgSpan.textContent = 'Applying font...';
+                    
+                    // Get list of available fonts
                     var fontsDataDiv = document.getElementById('ckpp-fonts-data');
                     var uploadedFonts = [];
                     if (fontsDataDiv) {
-                        try { uploadedFonts = JSON.parse(fontsDataDiv.getAttribute('data-fonts') || '[]'); } catch(e) { uploadedFonts = []; }
+                        try { 
+                            uploadedFonts = JSON.parse(fontsDataDiv.getAttribute('data-fonts') || '[]'); 
+                        } catch(e) { 
+                            uploadedFonts = []; 
+                            if (window.CKPP_DEBUG_MODE) {
+                                console.error('CKPP Debug: Error parsing fonts data', e);
+                            }
+                        }
                     }
+                    
+                    // Check if it's a custom font
                     var customFont = uploadedFonts.find(function(f) { return f.name === selectedFont; });
-                    if (customFont) {
-                        // Inject @font-face if not already present
-                        var styleId = 'ckpp-font-' + customFont.name.replace(/[^a-zA-Z0-9_-]/g, '');
-                        if (!document.getElementById(styleId)) {
-                            var style = document.createElement('style');
-                            style.id = styleId;
-                            style.textContent = `@font-face { font-family: '${customFont.name}'; src: url('${customFont.url}'); font-display: swap; }`;
-                            document.head.appendChild(style);
-                        }
-                        sel.set('fontFamily', customFont.name);
-                        // Wait for font to load before rendering and saving
-                        if (document.fonts && document.fonts.load) {
-                            document.fonts.load('16px "' + customFont.name + '"').then(function() {
-                                fabricCanvas.requestRenderAll();
-                                fabricCanvas.fire('object:modified', { target: sel });
-                                if (window.CKPP_DEBUG_MODE) {
-                                    console.log('CKPP: Forced save after custom font loaded');
-                                }
-                                if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
-                            }).catch(function(err) {
-                                if (window.CKPP_DEBUG_MODE) {
-                                    console.error('CKPP: Failed to load custom font', customFont.name, err);
-                                }
-                                fabricCanvas.requestRenderAll();
-                                fabricCanvas.fire('object:modified', { target: sel });
-                                if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
+                    
+                    // Function to apply the font after ensuring it's loaded
+                    function applyFont(fontName) {
+                        try {
+                            // Apply to selected object
+                            sel.set({
+                                'fontFamily': fontName,
+                                dirty: true
                             });
-                        } else {
+                            
+                            // Force object boundaries to update
+                            sel.setCoords();
+                            
+                            // Request full canvas redraw
                             fabricCanvas.requestRenderAll();
-                            fabricCanvas.fire('object:modified', { target: sel });
-                            if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
+                            
+                            if (window.CKPP_DEBUG_MODE) {
+                                console.log('CKPP Debug: Applied font', fontName, 'to object', sel);
+                            }
+                            
+                            // Clear message and trigger save
+                            if (msgSpan) {
+                                msgSpan.textContent = 'Font applied!';
+                                setTimeout(function() { 
+                                    if (msgSpan && msgSpan.textContent === 'Font applied!') {
+                                        msgSpan.textContent = '';
+                                    }
+                                }, 1000);
+                            }
+                            
+                            // Trigger save after short delay
+                            setTimeout(function() {
+                                fabricCanvas.fire('object:modified', { target: sel });
+                                if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
+                            }, 100);
+                            
+                        } catch (err) {
+                            if (window.CKPP_DEBUG_MODE) {
+                                console.error('CKPP Debug: Error applying font', fontName, err);
+                            }
+                            if (msgSpan) {
+                                msgSpan.textContent = 'Error applying font';
+                                setTimeout(function() { msgSpan.textContent = ''; }, 2000);
+                            }
                         }
-                    } else {
-                        sel.set('fontFamily', selectedFont);
-                        fabricCanvas.requestRenderAll();
-                        fabricCanvas.fire('object:modified', { target: sel });
-                        if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
+                    }
+                    
+                    if (customFont) {
+                        // For custom fonts, we need to ensure the font is loaded
+                        
+                        // Check if already preloaded
+                        if (window.CKPP_LOADED_FONTS[customFont.name]) {
+                            if (window.CKPP_DEBUG_MODE) {
+                                console.log('CKPP Debug: Font already preloaded:', customFont.name);
+                            }
+                            // Apply immediately since it's already loaded
+                            applyFont(customFont.name);
+                        } else {
+                            // Font not preloaded, need to load it first
+                            if (window.CKPP_DEBUG_MODE) {
+                                console.log('CKPP Debug: Font not preloaded, loading:', customFont.name);
+                            }
+                            
+                            // 1. Add the font-face style if not already present
+                            var styleId = 'ckpp-font-' + customFont.name.replace(/[^a-zA-Z0-9_-]/g, '');
+                            if (!document.getElementById(styleId)) {
+                                var style = document.createElement('style');
+                                style.id = styleId;
+                                style.textContent = `@font-face { font-family: '${customFont.name}'; src: url('${customFont.url}'); font-display: swap; }`;
+                                document.head.appendChild(style);
+                                
+                                if (window.CKPP_DEBUG_MODE) {
+                                    console.log('CKPP Debug: Added @font-face style for', customFont.name);
+                                }
+                            }
+                            
+                            // 2. Force load the font and apply
+                            if (document.fonts && document.fonts.load) {
+                                if (msgSpan) msgSpan.textContent = 'Loading custom font...';
+                                
+                                // Create a small div to force font loading
+                                var tempDiv = document.createElement('div');
+                                tempDiv.style.fontFamily = "'" + customFont.name + "'";
+                                tempDiv.style.visibility = 'hidden';
+                                tempDiv.style.position = 'absolute';
+                                tempDiv.style.top = '-9999px';
+                                tempDiv.innerHTML = 'Font Loading Test';
+                                document.body.appendChild(tempDiv);
+                                
+                                // Use the Fonts API to explicitly load the font
+                                document.fonts.load('16px "' + customFont.name + '"')
+                                    .then(function(loadedFonts) {
+                                        if (window.CKPP_DEBUG_MODE) {
+                                            console.log('CKPP Debug: Font loaded via API:', loadedFonts, customFont.name);
+                                        }
+                                        
+                                        // Mark as loaded
+                                        window.CKPP_LOADED_FONTS[customFont.name] = true;
+                                        
+                                        // Apply the font once loaded
+                                        applyFont(customFont.name);
+                                        
+                                        // Clean up
+                                        document.body.removeChild(tempDiv);
+                                    })
+                                    .catch(function(err) {
+                                        if (window.CKPP_DEBUG_MODE) {
+                                            console.error('CKPP Debug: Font load error via API:', err, customFont.name);
+                                        }
+                                        
+                                        // Mark as loaded anyway
+                                        window.CKPP_LOADED_FONTS[customFont.name] = true;
+                                        
+                                        // Apply anyway, it might still work
+                                        applyFont(customFont.name);
+                                        
+                                        // Clean up
+                                        document.body.removeChild(tempDiv);
+                                    });
+                            } else {
+                                // For browsers without the fonts API, use a timeout as a fallback
+                                if (window.CKPP_DEBUG_MODE) {
+                                    console.log('CKPP Debug: Font API not available, using timeout fallback for', customFont.name);
+                                }
+                                
+                                // Create a forcing element
+                                var tempDiv = document.createElement('div');
+                                tempDiv.style.fontFamily = "'" + customFont.name + "'";
+                                tempDiv.style.visibility = 'hidden';
+                                tempDiv.style.position = 'absolute';
+                                tempDiv.style.top = '-9999px';
+                                tempDiv.innerHTML = 'Font Loading Test';
+                                document.body.appendChild(tempDiv);
+                                
+                                // Give the font some time to load
+                                setTimeout(function() {
+                                    // Mark as loaded
+                                    window.CKPP_LOADED_FONTS[customFont.name] = true;
+                                    
+                                    // Apply the font
+                                    applyFont(customFont.name);
+                                    
+                                    // Clean up
+                                    document.body.removeChild(tempDiv);
+                                }, 500);
+                            }
+                        }
                     }
                 };
+                
+                // Also add a focus/click event to make it clear the selection is being processed
+                fontFamilyInput.addEventListener('focus', function() {
+                    var msgSpan = document.getElementById('ckpp-template-msg');
+                    if (msgSpan) msgSpan.textContent = 'Select a font...';
+                });
+                
+                fontFamilyInput.addEventListener('blur', function() {
+                    var msgSpan = document.getElementById('ckpp-template-msg');
+                    if (msgSpan && msgSpan.textContent === 'Select a font...') {
+                        msgSpan.textContent = '';
+                    }
+                });
             }
             var fontSizeInput = document.getElementById('ckpp-prop-font-size');
             if (fontSizeInput) {
                 fontSizeInput.oninput = function() {
                     var size = Math.max(6, parseInt(fontSizeInput.value) || 24);
                     sel.set('fontSize', size);
+                    
+                    // Force immediate canvas update
+                    sel.setCoords();
                     fabricCanvas.requestRenderAll();
-                    fabricCanvas.fire('object:modified', { target: sel });
-                    if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
+                    
+                    // Debounced save after brief delay
+                    if (saveTimeout) clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(function() {
+                        fabricCanvas.fire('object:modified', { target: sel });
+                        if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
+                    }, 300);
                 };
+                
+                // Add keydown handler to apply changes on Enter key
+                fontSizeInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        var size = Math.max(6, parseInt(fontSizeInput.value) || 24);
+                        sel.set('fontSize', size);
+                        sel.setCoords();
+                        fabricCanvas.requestRenderAll();
+                        fabricCanvas.fire('object:modified', { target: sel });
+                        if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
+                        fontSizeInput.blur();
+                    }
+                });
             }
             // Fill color (Pickr integration)
             var fillPickerDiv = document.getElementById('ckpp-prop-fill-picker');
@@ -498,20 +860,69 @@
                         }
                     }
                 });
+                
+                // Handle save event (when user clicks the save button)
                 window.ckppPickr.on('save', function(color) {
+                    if (!color) return;
+                    
                     var hex = color.toHEXA().toString();
                     sel.set('fill', hex);
+                    sel.setCoords();
                     sel.dirty = true;
+                    
+                    // Force immediate canvas update
                     fabricCanvas.renderAll();
+                    
+                    // Visual feedback
+                    var msgSpan = document.getElementById('ckpp-template-msg');
+                    if (msgSpan) {
+                        msgSpan.textContent = 'Color saved!';
+                        setTimeout(function() { msgSpan.textContent = ''; }, 800);
+                    }
+                    
+                    // Signal the change for saving
                     fabricCanvas.fire('object:modified', { target: sel });
                     window.ckppPickr.hide();
                 });
+                
+                // Handle live color changes in the picker
                 window.ckppPickr.on('change', function(color) {
+                    if (!color) return;
+                    
                     var hex = color.toHEXA().toString();
                     sel.set('fill', hex);
+                    sel.setCoords();
                     sel.dirty = true;
+                    
+                    // Force immediate canvas update 
                     fabricCanvas.renderAll();
-                    fabricCanvas.fire('object:modified', { target: sel });
+                    
+                    // Only trigger save after a small delay to avoid excessive saves during color dragging
+                    if (saveTimeout) clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(function() {
+                        fabricCanvas.fire('object:modified', { target: sel });
+                    }, 200);
+                });
+                
+                // Add additional event handlers for smoother UX
+                window.ckppPickr.on('init', function() {
+                    if (window.CKPP_DEBUG_MODE) {
+                        console.log('CKPP Debug: Color picker initialized with', initialColor);
+                    }
+                });
+                
+                window.ckppPickr.on('show', function() {
+                    var msgSpan = document.getElementById('ckpp-template-msg');
+                    if (msgSpan) {
+                        msgSpan.textContent = 'Selecting color...';
+                    }
+                });
+                
+                window.ckppPickr.on('hide', function() {
+                    var msgSpan = document.getElementById('ckpp-template-msg');
+                    if (msgSpan && msgSpan.textContent === 'Selecting color...') {
+                        msgSpan.textContent = '';
+                    }
                 });
             }
             var angleInput = document.getElementById('ckpp-prop-angle');
@@ -529,7 +940,18 @@
                 Array.from(alignGroup.querySelectorAll('button[data-align]')).forEach(function(btn) {
                     btn.onclick = function() {
                         var align = btn.getAttribute('data-align');
+                        
+                        // Provide visual feedback that alignment is changing
+                        var msgSpan = document.getElementById('ckpp-template-msg');
+                        if (msgSpan) {
+                            msgSpan.textContent = 'Aligning text...';
+                            setTimeout(function() { msgSpan.textContent = ''; }, 800);
+                        }
+                        
+                        // Apply alignment immediately
                         sel.set('textAlign', align);
+                        sel.setCoords();
+                        
                         // Update button styles
                         Array.from(alignGroup.querySelectorAll('button[data-align]')).forEach(function(b) {
                             b.classList.remove('ckpp-align-btn-active');
@@ -537,9 +959,15 @@
                         });
                         btn.classList.add('ckpp-align-btn-active');
                         btn.style.background = '#fec610';
+                        
+                        // Force immediate canvas update
                         fabricCanvas.requestRenderAll();
+                        
+                        // Signal the change for saving
                         fabricCanvas.fire('object:modified', { target: sel });
-                        if (typeof saveCanvasConfig === 'function') saveCanvasConfig();
+                        if (typeof saveCanvasConfig === 'function') {
+                            saveCanvasConfig();
+                        }
                     };
                 });
             }
@@ -738,59 +1166,98 @@
             }
         }
         function saveCanvasConfig() {
+            // First check if we have the required global variables
             if (!window.CKPPDesigner || !CKPPDesigner.ajaxUrl || !CKPPDesigner.nonce) {
-                if (window.CKPP_DEBUG_MODE) {
-                    console.error('CKPP: Missing CKPPDesigner, ajaxUrl, or nonce');
-                }
+                console.error('CKPP: Missing required global variables for saving. Check if CKPPDesigner is properly initialized.');
+                showSaving('Config Error');
                 return;
             }
-            // Ensure all objects have fill/stroke explicitly set
-            fabricCanvas.getObjects().forEach(function(obj) {
-                if (typeof obj.fill === 'undefined') obj.set('fill', '#222');
-                if (typeof obj.stroke === 'undefined') obj.set('stroke', null);
-            });
-            const config = JSON.stringify(fabricCanvas.toJSON());
-            const designId = window.CKPPDesigner.designId || 0;
-            const title = window.ckppDesignName || 'Untitled Design';
-            // --- Generate preview image ---
-            let preview = '';
-            try {
-                preview = fabricCanvas.toDataURL({ format: 'png', quality: 0.7 });
-            } catch (e) {
-                if (window.CKPP_DEBUG_MODE) console.error('CKPP: Failed to generate preview image', e);
-                preview = '';
+            
+            var designId = CKPPDesigner.designId || (window.CKPP_DESIGN_ID ? window.CKPP_DESIGN_ID : 0);
+            var title = document.getElementById('ckpp-design-name') ? document.getElementById('ckpp-design-name').value : 'Untitled Design';
+            
+            if (!title || title.trim() === '') {
+                title = 'Untitled Design';
             }
-            showSaving('Saving…');
+            
             if (window.CKPP_DEBUG_MODE) {
-                console.log('CKPP: Saving design', { designId, title, config, nonce: CKPPDesigner.nonce, preview });
+                console.log('CKPP Debug: Saving design ID:', designId, 'Title:', title);
             }
-            $.post(CKPPDesigner.ajaxUrl, {
-                action: 'ckpp_save_design',
-                nonce: CKPPDesigner.nonce,
-                designId: designId,
-                title: title,
-                config: config,
-                preview: preview
-            }, function(resp) {
+            
+            // Get canvas JSON
+            var config = JSON.stringify(fabricCanvas.toJSON(['label', 'required']));
+            
+            // Generate preview as base64 PNG
+            var preview = null;
+            try {
+                preview = fabricCanvas.toDataURL({
+                    format: 'png',
+                    quality: 0.8,
+                    multiplier: 0.5
+                });
+                
                 if (window.CKPP_DEBUG_MODE) {
-                    console.log('CKPP: Save response', resp);
+                    console.log('CKPP Debug: Generated preview image');
                 }
-                if (resp && resp.success) {
-                    showSaving('Saved');
-                    lastSaveStatus = 'Saved';
-                } else {
+            } catch (e) {
+                if (window.CKPP_DEBUG_MODE) {
+                    console.error('CKPP Debug: Error generating preview', e);
+                }
+            }
+            
+            showSaving('Saving...');
+            
+            $.ajax({
+                url: CKPPDesigner.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'ckpp_save_design',
+                    nonce: CKPPDesigner.nonce,
+                    designId: designId,
+                    title: title,
+                    config: config,
+                    preview: preview
+                },
+                timeout: 30000, // 30 second timeout
+                success: function(resp) {
+                    if (window.CKPP_DEBUG_MODE) {
+                        console.log('CKPP Debug: Save response', resp);
+                    }
+                    
+                    if (resp && resp.success) {
+                        showSaving('Saved');
+                        lastSaveStatus = 'Saved';
+                        
+                        // Update design ID if this was a new design
+                        if (resp.data && resp.data.designId && designId === 0) {
+                            if (window.CKPP_DESIGN_ID) {
+                                window.CKPP_DESIGN_ID = resp.data.designId;
+                            }
+                            if (window.CKPPDesigner) {
+                                window.CKPPDesigner.designId = resp.data.designId;
+                            }
+                            
+                            if (window.CKPP_DEBUG_MODE) {
+                                console.log('CKPP Debug: Updated design ID to', resp.data.designId);
+                            }
+                        }
+                    } else {
+                        showSaving('Save failed');
+                        lastSaveStatus = 'Save failed';
+                        console.error('CKPP: Save error', resp);
+                    }
+                    
+                    setTimeout(function() {
+                        if (lastSaveStatus === 'Saved') showSaving('');
+                    }, 1200);
+                },
+                error: function(xhr, status, error) {
+                    if (window.CKPP_DEBUG_MODE) {
+                        console.error('CKPP Debug: Save AJAX failed', status, error, xhr);
+                    }
                     showSaving('Save failed');
                     lastSaveStatus = 'Save failed';
                 }
-                setTimeout(function() {
-                    if (lastSaveStatus === 'Saved') showSaving('');
-                }, 1200);
-            }).fail(function(xhr, status, error) {
-                if (window.CKPP_DEBUG_MODE) {
-                    console.error('CKPP: Save AJAX failed', status, error, xhr);
-                }
-                showSaving('Save failed');
-                lastSaveStatus = 'Save failed';
             });
         }
         function debouncedSave() {
@@ -842,33 +1309,64 @@
                     var tplId = loadSel.value;
                     if (!tplId) return;
                     if (!confirm('Load this template? This will overwrite your current design.')) { loadSel.value = ''; return; }
+                    
+                    if (window.CKPP_DEBUG_MODE) {
+                        console.log('CKPP Debug: Loading template ID:', tplId);
+                    }
+                    
                     msgSpan.textContent = 'Loading...';
-                    $.get(CKPPDesigner.ajaxUrl, {
-                        action: 'ckpp_load_design',
-                        nonce: CKPPDesigner.nonce,
-                        designId: tplId
-                    }, function(resp) {
-                        if (resp && resp.success && resp.data && resp.data.config) {
-                            try {
-                                var configObj = typeof resp.data.config === 'string' ? JSON.parse(resp.data.config) : resp.data.config;
-                                var canvas = window.ckppFabricCanvas;
-                                if (!canvas) { msgSpan.textContent = 'Canvas not found.'; setTimeout(function() { msgSpan.textContent = ''; }, 2000); return; }
-                                canvas.loadFromJSON(configObj, function() {
-                                    canvas.renderAll();
-                                    msgSpan.textContent = 'Template loaded!';
+                    
+                    $.ajax({
+                        url: CKPPDesigner.ajaxUrl,
+                        type: 'GET',
+                        data: {
+                            action: 'ckpp_load_design',
+                            nonce: CKPPDesigner.nonce,
+                            designId: tplId
+                        },
+                        timeout: 30000,
+                        success: function(resp) {
+                            if (window.CKPP_DEBUG_MODE) {
+                                console.log('CKPP Debug: Load template response', resp);
+                            }
+                            
+                            if (resp && resp.success && resp.data && resp.data.config) {
+                                try {
+                                    var configObj = typeof resp.data.config === 'string' ? JSON.parse(resp.data.config) : resp.data.config;
+                                    var canvas = window.ckppFabricCanvas;
+                                    
+                                    if (!canvas) { 
+                                        msgSpan.textContent = 'Canvas not found.'; 
+                                        console.error('CKPP: Canvas not found for template loading');
+                                        setTimeout(function() { msgSpan.textContent = ''; }, 2000); 
+                                        return; 
+                                    }
+                                    
+                                    canvas.loadFromJSON(configObj, function() {
+                                        canvas.renderAll();
+                                        msgSpan.textContent = 'Template loaded!';
+                                        
+                                        // Ensure we save the template content to our design
+                                        debouncedSave();
+                                        
+                                        setTimeout(function() { msgSpan.textContent = ''; }, 2000);
+                                    });
+                                } catch (e) {
+                                    msgSpan.textContent = 'Load failed.';
+                                    console.error('CKPP: Error loading template:', e);
                                     setTimeout(function() { msgSpan.textContent = ''; }, 2000);
-                                });
-                            } catch (e) {
+                                }
+                            } else {
                                 msgSpan.textContent = 'Load failed.';
+                                console.error('CKPP: Load failed, invalid response', resp);
                                 setTimeout(function() { msgSpan.textContent = ''; }, 2000);
                             }
-                        } else {
+                        },
+                        error: function(xhr, status, error) {
                             msgSpan.textContent = 'Load failed.';
+                            console.error('CKPP: AJAX error loading template', status, error);
                             setTimeout(function() { msgSpan.textContent = ''; }, 2000);
                         }
-                    }).fail(function() {
-                        msgSpan.textContent = 'Load failed.';
-                        setTimeout(function() { msgSpan.textContent = ''; }, 2000);
                     });
                 };
             }
@@ -959,31 +1457,92 @@
         // If CKPP_DESIGN_ID is set, load the config before initializing the designer
         if (window.CKPP_DESIGN_ID && window.CKPPDesigner && CKPPDesigner.ajaxUrl && CKPPDesigner.nonce) {
             if (window.CKPP_DEBUG_MODE) {
-                console.log('CKPP: Loading design config for designId', CKPP_DESIGN_ID);
+                console.log('CKPP Debug: Loading design config for designId', CKPP_DESIGN_ID);
             }
-            $.get(CKPPDesigner.ajaxUrl, {
-                action: 'ckpp_load_design',
-                nonce: CKPPDesigner.nonce,
-                designId: CKPP_DESIGN_ID
-            }, function(resp) {
+            
+            // Show loading indicator
+            var designerRoot = document.getElementById('ckpp-product-designer-root');
+            if (designerRoot) {
+                designerRoot.innerHTML = '<div class="ckpp-loading"><span class="spinner is-active"></span> ' + 
+                    '<span>Loading design...</span></div>';
+            }
+            
+            // First preload all fonts, then load the design config
+            preloadAllFonts().then(function() {
+                // Now load the design config
+                $.ajax({
+                    url: CKPPDesigner.ajaxUrl,
+                    type: 'GET',
+                    data: {
+                        action: 'ckpp_load_design',
+                        nonce: CKPPDesigner.nonce,
+                        designId: CKPP_DESIGN_ID
+                    },
+                    timeout: 30000, // 30 second timeout
+                    success: function(resp) {
+                        if (window.CKPP_DEBUG_MODE) {
+                            console.log('CKPP Debug: Initial load design response', resp);
+                        }
+                        
+                        if (resp && resp.success && resp.data && resp.data.config) {
+                            try {
+                                // Store the config for use in the designer initialization
+                                window.CKPP_INITIAL_CONFIG = resp.data.config;
+                                
+                                // Update the design title if available
+                                if (resp.data.title) {
+                                    window.CKPP_DESIGN_TITLE = resp.data.title;
+                                }
+                                
+                                if (window.CKPP_DEBUG_MODE) {
+                                    console.log('CKPP Debug: Successfully loaded initial config');
+                                }
+                            } catch (e) {
+                                console.error('CKPP: Error processing initial config', e);
+                                window.CKPP_INITIAL_CONFIG = null;
+                                showLoadError(designerRoot);
+                            }
+                        } else {
+                            console.error('CKPP: Failed to load initial config, invalid response', resp);
+                            window.CKPP_INITIAL_CONFIG = null;
+                            showLoadError(designerRoot);
+                        }
+                        
+                        // Always render the designer, even if loading failed
+                        renderMinimalDesigner();
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('CKPP: AJAX error loading initial config', status, error, xhr);
+                        window.CKPP_INITIAL_CONFIG = null;
+                        showLoadError(designerRoot);
+                        renderMinimalDesigner();
+                    }
+                });
+            });
+        } else {
+            // No design ID or missing config
+            // Still preload fonts before rendering with empty canvas
+            preloadAllFonts().then(function() {
                 if (window.CKPP_DEBUG_MODE) {
-                    console.log('CKPP: Load design response', resp);
-                }
-                if (resp && resp.success && resp.data && resp.data.config) {
-                    window.CKPP_INITIAL_CONFIG = resp.data.config;
-                } else {
-                    window.CKPP_INITIAL_CONFIG = null;
-                }
-                renderMinimalDesigner();
-            }).fail(function(xhr, status, error) {
-                if (window.CKPP_DEBUG_MODE) {
-                    console.error('CKPP: Failed to load design config', status, error, xhr);
+                    if (!window.CKPP_DESIGN_ID) {
+                        console.log('CKPP Debug: No design ID provided, starting with empty canvas');
+                    } else {
+                        console.log('CKPP Debug: Missing CKPPDesigner config, cannot load design');
+                    }
                 }
                 window.CKPP_INITIAL_CONFIG = null;
                 renderMinimalDesigner();
             });
-        } else {
-            renderMinimalDesigner();
+        }
+        
+        // Helper function to show load error
+        function showLoadError(container) {
+            if (container) {
+                var errorDiv = document.createElement('div');
+                errorDiv.className = 'notice notice-error';
+                errorDiv.innerHTML = '<p>Error loading design. You may continue to use the designer, but your changes may not save correctly.</p>';
+                container.insertBefore(errorDiv, container.firstChild);
+            }
         }
     });
     // Replace previous renderMinimalDesigner with this version

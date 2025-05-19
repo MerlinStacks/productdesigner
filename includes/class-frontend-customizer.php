@@ -29,10 +29,32 @@ class CKPP_Frontend_Customizer {
         add_action( 'wp_ajax_ckpp_generate_print_file', [ $this, 'ajax_generate_print_file' ] );
         add_action( 'template_redirect', [ $this, 'replace_gallery_with_live_preview' ] );
         if (is_admin()) {
-            add_action('admin_menu', [ $this, 'add_print_files_submenu' ]);
+            add_action('admin_menu', [ $this, 'add_print_files_submenu' ], 20);
         }
         add_action( 'wp_ajax_ckpp_upload_customer_image', [ $this, 'ajax_upload_customer_image' ] );
         add_action( 'wp_ajax_nopriv_ckpp_upload_customer_image', [ $this, 'ajax_upload_customer_image' ] );
+        add_filter('woocommerce_cart_item_thumbnail', function($image, $cart_item, $cart_item_key) {
+            if (!empty($cart_item['ckpp_preview_image'])) {
+                return '<img src="' . esc_attr($cart_item['ckpp_preview_image']) . '" alt="Preview" style="max-width:100px;max-height:80px;" />';
+            }
+            return $image;
+        }, 10, 3);
+        add_filter('woocommerce_store_api_cart_item_images', function($product_images, $cart_item, $cart_item_key) {
+            if (!empty($cart_item['ckpp_preview_image'])) {
+                return [
+                    (object) [
+                        'id'        => 0,
+                        'src'       => $cart_item['ckpp_preview_image'],
+                        'thumbnail' => $cart_item['ckpp_preview_image'],
+                        'srcset'    => '',
+                        'sizes'     => '',
+                        'name'      => __('Personalized Preview', 'customkings'),
+                        'alt'       => __('Personalized Preview', 'customkings'),
+                    ]
+                ];
+            }
+            return $product_images;
+        }, 10, 3);
     }
 
     /**
@@ -108,13 +130,39 @@ class CKPP_Frontend_Customizer {
      * @return array
      */
     public function add_cart_item_data($cart_item_data, $product_id, $variation_id) {
+        // if (WP_DEBUG) {
+        //     error_log('[CKPP DEBUG] add_cart_item_data - Before: ' . print_r($cart_item_data, true));
+        //     error_log('[CKPP DEBUG] add_cart_item_data - POST data: ' . print_r($_POST, true));
+        // }
         if (isset($_POST['ckpp_personalization_data'])) {
-            $personalization_data = wp_unslash($_POST['ckpp_personalization_data']);
-            $cart_item_data['ckpp_personalization_data'] = $personalization_data;
-            // This key ensures uniqueness for each personalization
-            $cart_item_data['ckpp_personalization_unique'] = md5($personalization_data);
+            $personalization_data_json = wp_unslash($_POST['ckpp_personalization_data']);
+            // error_log('[CKPP PREVIEW DEBUG] Raw personalization_data POSTed: ' . $personalization_data_json);
+            $cart_item_data['ckpp_personalization_data'] = $personalization_data_json;
+            
+            $decoded_data = json_decode($personalization_data_json, true);
+            // error_log('[CKPP PREVIEW DEBUG] JSON decoded data: ' . print_r($decoded_data, true));
+            // if (json_last_error() !== JSON_ERROR_NONE) {
+            //     error_log('[CKPP PREVIEW DEBUG] JSON Decode Error: ' . json_last_error_msg());
+            // }
+
+            if (is_array($decoded_data) && !empty($decoded_data['preview_image'])) {
+                $cart_item_data['ckpp_preview_image'] = $decoded_data['preview_image'];
+                // error_log('[CKPP PREVIEW DEBUG] Preview image found in decoded data. Length: ' . strlen($decoded_data['preview_image']));
+            // } else {
+            //     error_log('[CKPP PREVIEW DEBUG] Preview image NOT found or empty in decoded data.');
+            //     if (is_array($decoded_data)) {
+            //         error_log('[CKPP PREVIEW DEBUG] Keys in decoded data: ' . implode(', ', array_keys($decoded_data)));
+            //     } else {
+            //         error_log('[CKPP PREVIEW DEBUG] Decoded data is not an array or is null.');
+            //     }
+            }
+            $cart_item_data['ckpp_personalization_unique'] = md5($personalization_data_json);
             $cart_item_data['ckpp_is_personalized'] = true;
-        }
+        } /* else { // This entire else block is commented out
+            error_log('[CKPP PREVIEW DEBUG] $_POST_ckpp_personalization_data was NOT set.');
+        } */
+        // if (WP_DEBUG) {
+        //     error_log('[CKPP DEBUG] add_cart_item_data - After: ' . print_r($cart_item_data, true));
         return $cart_item_data;
     }
 
@@ -126,6 +174,9 @@ class CKPP_Frontend_Customizer {
      * @return array
      */
     public function display_cart_item_data($item_data, $cart_item) {
+        // if (WP_DEBUG) {
+        //     error_log('[CKPP DEBUG] display_cart_item_data - Cart Item Data: ' . print_r($cart_item, true));
+        // }
         if (isset($cart_item['ckpp_personalization_data'])) {
             $data = json_decode($cart_item['ckpp_personalization_data'], true);
             if (is_array($data)) {
@@ -136,13 +187,32 @@ class CKPP_Frontend_Customizer {
                     'display' => '<strong>' . esc_html__('Personalization Details', 'customkings') . '</strong>',
                 ];
                 foreach ($data as $key => $value) {
+                    if (WP_DEBUG && strpos($key, 'image') !== false) {
+                        error_log('[CKPP DEBUG CART DISPLAY] Processing key: ' . $key . ' | Value (first 100 chars): ' . substr($value, 0, 100));
+                        error_log('[CKPP DEBUG CART DISPLAY] Is string? ' . (is_string($value) ? 'Yes' : 'No'));
+                        if (is_string($value)) {
+                            $is_data_url = strpos($value, 'data:image') === 0;
+                            $is_file_url = preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $value);
+                            error_log('[CKPP DEBUG CART DISPLAY] Starts with data:image? ' . ($is_data_url ? 'Yes' : 'No'));
+                            error_log('[CKPP DEBUG CART DISPLAY] Matches image extension? ' . ($is_file_url ? 'Yes' : 'No'));
+                            if ($is_data_url || $is_file_url) {
+                                $temp_img_html = sprintf(
+                                    '<img src="%s" alt="%s" style="max-width:100px;max-height:80px;display:block;margin:5px 0;" />',
+                                    (strpos($value, 'data:image') === 0 ? esc_attr($value) : esc_url($value)),
+                                    esc_attr(ucwords(str_replace(['_', '-'], ' ', preg_replace('/[_-]?\d+$/', '', $key))))
+                                );
+                                error_log('[CKPP DEBUG CART DISPLAY] Generated img_html (first 150 chars): ' . substr($temp_img_html, 0, 150));
+                            }
+                        }
+                    }
+
                     if (empty($value) || $key === 'ckpp_unique') continue;
                     $label = preg_replace('/[_-]?\d+$/', '', $key);
                     $label = ucwords(str_replace(['_', '-'], ' ', $label));
                     if (is_string($value) && (strpos($value, 'data:image') === 0 || preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $value))) {
                         $img_html = sprintf(
                             '<img src="%s" alt="%s" style="max-width:100px;max-height:80px;display:block;margin:5px 0;" />',
-                            esc_url($value),
+                            (strpos($value, 'data:image') === 0 ? esc_attr($value) : esc_url($value)),
                             esc_attr($label)
                         );
                         $item_data[] = [
@@ -195,6 +265,11 @@ class CKPP_Frontend_Customizer {
             if ( is_array( $arr ) ) {
                 foreach ( $arr as $key => $value ) {
                     echo '<div><strong>' . esc_html( ucfirst( $key ) ) . ':</strong> ' . esc_html( $value ) . '</div>';
+                }
+                if (!empty($arr['preview_image'])) {
+                    echo '<div style="margin-top:1em;"><strong>Preview Image:</strong><br>';
+                    echo '<img src="' . esc_attr($arr['preview_image']) . '" style="max-width:200px;max-height:160px;border:1px solid #ccc;" />';
+                    echo '</div>';
                 }
             }
             // Visual preview
@@ -349,14 +424,28 @@ window.CKPP_DEBUG_MODE = ' . $debug_mode . ';</script>';
      * Add Print Files submenu to the admin menu.
      */
     public function add_print_files_submenu() {
-        add_submenu_page(
-            'ckpp_admin',
+        $parent_slug = 'ckpp_admin';
+        $page_slug = 'ckpp_print_files';
+        
+        // Add debug logging
+        error_log('CKPP: Registering Print Files submenu - parent: ' . $parent_slug . ', slug: ' . $page_slug);
+        
+        // Use admin.php?page=... format instead of direct page
+        $result = add_submenu_page(
+            $parent_slug,
             __('Print Files', 'customkings'),
             __('Print Files', 'customkings'),
             'manage_woocommerce',
-            'ckpp_print_files',
+            $page_slug,
             [ $this, 'render_print_files_page' ]
         );
+        
+        // Check if registration was successful
+        if ($result === false) {
+            error_log('CKPP: Failed to register Print Files submenu page');
+        } else {
+            error_log('CKPP: Successfully registered Print Files submenu page');
+        }
     }
 
     /**
@@ -435,9 +524,22 @@ if (!function_exists('ckpp_live_preview_shortcode')) {
  * Ensure personalized items are always unique in the cart (block & classic themes).
  * This filter appends a hash of the personalization data to the cart item key.
  */
-add_filter('woocommerce_cart_id', function($cart_id, $cart_item, $cart_item_key) {
-    if (!empty($cart_item['ckpp_personalization_data'])) {
-        $cart_id .= '_' . md5($cart_item['ckpp_personalization_data']);
+// add_filter('woocommerce_cart_id', function($cart_id, $cart_item, $cart_item_key) {
+//     if (!empty($cart_item['ckpp_personalization_data'])) {
+//         $cart_id .= '_' . md5($cart_item['ckpp_personalization_data']);
+//     }
+//     return $cart_id;
+// }, 10, 3); 
+
+add_filter('woocommerce_blocks_cart_item_thumbnail', function($image, $cart_item, $cart_item_key) {
+    if (!empty($cart_item['ckpp_preview_image'])) {
+        return '<img src="' . esc_attr($cart_item['ckpp_preview_image']) . '" alt="Preview" style="max-width:100px;max-height:80px;" />';
     }
-    return $cart_id;
-}, 10, 3); 
+    return $image;
+}, 10, 3);
+
+add_action('woocommerce_before_cart', function() {
+    foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
+        error_log('[CKPP DEBUG] Cart item ' . $cart_item_key . ': ' . print_r($cart_item, true));
+    }
+}); 

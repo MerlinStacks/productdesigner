@@ -379,28 +379,111 @@
             // --- BEGIN: Replace image placeholders with uploaded images ---
             fabricCanvas.getObjects().forEach(function(obj) {
                 if (obj.placeholderType === 'image' && obj.src) {
-                    var opts = {
+                    // Original properties from the placeholder config object
+                    const placeholderConfig = {
                         left: obj.left,
                         top: obj.top,
-                        scaleX: obj.scaleX,
-                        scaleY: obj.scaleY,
-                        angle: obj.angle,
-                        width: obj.width,
-                        height: obj.height,
-                        originX: obj.originX,
-                        originY: obj.originY,
-                        selectable: false,
-                        evented: false
+                        width: obj.width, // This should be the placeholder's defined width
+                        height: obj.height, // This should be the placeholder's defined height
+                        scaleX: obj.scaleX || 1,
+                        scaleY: obj.scaleY || 1,
+                        angle: obj.angle || 0,
+                        originX: obj.originX || 'left',
+                        originY: obj.originY || 'top',
+                        selectable: obj.selectable || false,
+                        evented: obj.evented || false,
+                        src: obj.src // User uploaded image URL
                     };
-                    fabricCanvas.remove(obj);
-                    fabric.Image.fromURL(obj.src, function(img) {
-                        img.set(opts);
-                        if (opts.width && opts.height) {
-                            img.set({
-                                scaleX: opts.width / img.width,
-                                scaleY: opts.height / img.height
-                            });
+
+                    fabricCanvas.remove(obj); // Remove the original placeholder
+
+                    fabric.Image.fromURL(placeholderConfig.src, function(img) {
+                        if(window.CKPP_DEBUG_MODE) console.log('[CKPP PREVIEW] Placeholder Config:', JSON.parse(JSON.stringify(placeholderConfig)));
+                        
+                        // 1. Determine the placeholder's visual bounding box on canvas
+                        const pConfigWidth = placeholderConfig.width;
+                        const pConfigHeight = placeholderConfig.height;
+                        const pScaleXToApply = placeholderConfig.scaleX; // Placeholder's original scaleX
+                        const pScaleYToApply = placeholderConfig.scaleY; // Placeholder's original scaleY
+
+                        // Visual dimensions of the placeholder area
+                        const visualPlaceholderWidth = pConfigWidth * pScaleXToApply;
+                        const visualPlaceholderHeight = pConfigHeight * pScaleYToApply;
+
+                        // Visual top-left corner of the placeholder area on canvas
+                        let visualPlaceholderLeft = placeholderConfig.left;
+                        let visualPlaceholderTop = placeholderConfig.top;
+
+                        if (placeholderConfig.originX === 'center') {
+                            visualPlaceholderLeft = placeholderConfig.left - (visualPlaceholderWidth / 2);
+                        } else if (placeholderConfig.originX === 'right') {
+                            visualPlaceholderLeft = placeholderConfig.left - visualPlaceholderWidth;
                         }
+
+                        if (placeholderConfig.originY === 'center') {
+                            visualPlaceholderTop = placeholderConfig.top - (visualPlaceholderHeight / 2);
+                        } else if (placeholderConfig.originY === 'bottom') {
+                            visualPlaceholderTop = placeholderConfig.top - visualPlaceholderHeight;
+                        }
+
+                        // 2. Calculate scale factor for the uploaded image to cover this viewport
+                        const imgNativeWidth = img.width;  // fabric.Image gives native dimensions
+                        const imgNativeHeight = img.height;
+
+                        const placeholderAspectRatio = visualPlaceholderWidth / visualPlaceholderHeight;
+                        const imageAspectRatio = imgNativeWidth / imgNativeHeight;
+
+                        if(window.CKPP_DEBUG_MODE) {
+                            console.log('[CKPP PREVIEW] Placeholder Visual WxH:', visualPlaceholderWidth, 'x', visualPlaceholderHeight);
+                            console.log('[CKPP PREVIEW] Placeholder Visual L,T:', visualPlaceholderLeft, visualPlaceholderTop);
+                            console.log('[CKPP PREVIEW] Uploaded Img Native WxH:', imgNativeWidth, 'x', imgNativeHeight);
+                            console.log('[CKPP PREVIEW] Placeholder Aspect:', placeholderAspectRatio, 'Image Aspect:', imageAspectRatio);
+                        }
+
+                        let scaleFactor;
+                        if (imageAspectRatio >= placeholderAspectRatio) { // Image is wider or same aspect as placeholder
+                            scaleFactor = visualPlaceholderHeight / imgNativeHeight; // Fit to placeholder height
+                        } else { // Image is taller than placeholder
+                            scaleFactor = visualPlaceholderWidth / imgNativeWidth; // Fit to placeholder width
+                        }
+
+                        // 3. Calculate top-left position for the image object on canvas
+                        const finalImageCanvasLeft = visualPlaceholderLeft - ((imgNativeWidth * scaleFactor) - visualPlaceholderWidth) / 2;
+                        const finalImageCanvasTop = visualPlaceholderTop - ((imgNativeHeight * scaleFactor) - visualPlaceholderHeight) / 2;
+
+                        // 4. Define the clipPath. It's in the image's local (unscaled) coordinates.
+                        const clipPathRectLeft = (visualPlaceholderLeft - finalImageCanvasLeft) / scaleFactor;
+                        const clipPathRectTop = (visualPlaceholderTop - finalImageCanvasTop) / scaleFactor;
+                        const clipPathRectWidth = visualPlaceholderWidth / scaleFactor;
+                        const clipPathRectHeight = visualPlaceholderHeight / scaleFactor;
+
+                        if(window.CKPP_DEBUG_MODE) {
+                            console.log('[CKPP PREVIEW] Calculated ScaleFactor:', scaleFactor);
+                            console.log('[CKPP PREVIEW] Final Image Canvas L,T:', finalImageCanvasLeft, finalImageCanvasTop);
+                            console.log('[CKPP PREVIEW] ClipPath Rect L,T:', clipPathRectLeft, clipPathRectTop);
+                            console.log('[CKPP PREVIEW] ClipPath Rect WxH (local coords):', clipPathRectWidth, 'x', clipPathRectHeight);
+                        }
+
+                        img.set({
+                            left: finalImageCanvasLeft,
+                            top: finalImageCanvasTop,
+                            angle: placeholderConfig.angle,
+                            originX: 'left', // Crucial: Set image origin to top-left for consistent positioning
+                            originY: 'top',  // Crucial: Set image origin to top-left
+                            selectable: false,
+                            evented: false,
+                            scaleX: scaleFactor,
+                            scaleY: scaleFactor,
+                            // clipPath: new fabric.Rect({
+                            //     originX: 'left', // Clip path rect's own origin
+                            //     originY: 'top',  // Clip path rect's own origin
+                            //     left: clipPathRectLeft,
+                            //     top: clipPathRectTop,
+                            //     width: clipPathRectWidth,
+                            //     height: clipPathRectHeight
+                            // })
+                        });
+
                         fabricCanvas.add(img);
                         fabricCanvas.renderAll();
                     }, { crossOrigin: 'anonymous' });
@@ -424,8 +507,13 @@
         });
         fabricCanvas.discardActiveObject();
         fabricCanvas.selection = false;
-        fabricCanvas.forEachObject(function(obj) { obj.selectable = false; });
-        fabricCanvas.forEachObject(function(obj) { if (obj.type === 'textbox') { obj.editable = false; obj.evented = false; }});
+        fabricCanvas.forEachObject(function(obj) { 
+            obj.selectable = false;
+            obj.evented = false;
+            if (obj.isType('i-text') || obj.isType('textbox')) {
+                obj.editable = false;
+            }
+        });
     }
     function savePersonalization() {
         const form = document.getElementById('ckpp-customizer-form');
@@ -639,28 +727,111 @@
                     // --- BEGIN: Replace image placeholders with uploaded images ---
                     fabricCanvas.getObjects().forEach(function(obj) {
                         if (obj.placeholderType === 'image' && obj.src) {
-                            var opts = {
+                            // Original properties from the placeholder config object
+                            const placeholderConfig = {
                                 left: obj.left,
                                 top: obj.top,
-                                scaleX: obj.scaleX,
-                                scaleY: obj.scaleY,
-                                angle: obj.angle,
-                                width: obj.width,
-                                height: obj.height,
-                                originX: obj.originX,
-                                originY: obj.originY,
-                                selectable: false,
-                                evented: false
+                                width: obj.width, // This should be the placeholder's defined width
+                                height: obj.height, // This should be the placeholder's defined height
+                                scaleX: obj.scaleX || 1,
+                                scaleY: obj.scaleY || 1,
+                                angle: obj.angle || 0,
+                                originX: obj.originX || 'left',
+                                originY: obj.originY || 'top',
+                                selectable: obj.selectable || false,
+                                evented: obj.evented || false,
+                                src: obj.src // User uploaded image URL
                             };
-                            fabricCanvas.remove(obj);
-                            fabric.Image.fromURL(obj.src, function(img) {
-                                img.set(opts);
-                                if (opts.width && opts.height) {
-                                    img.set({
-                                        scaleX: opts.width / img.width,
-                                        scaleY: opts.height / img.height
-                                    });
+
+                            fabricCanvas.remove(obj); // Remove the original placeholder
+
+                            fabric.Image.fromURL(placeholderConfig.src, function(img) {
+                                if(window.CKPP_DEBUG_MODE) console.log('[CKPP PREVIEW] Placeholder Config:', JSON.parse(JSON.stringify(placeholderConfig)));
+                                
+                                // 1. Determine the placeholder's visual bounding box on canvas
+                                const pConfigWidth = placeholderConfig.width;
+                                const pConfigHeight = placeholderConfig.height;
+                                const pScaleXToApply = placeholderConfig.scaleX; // Placeholder's original scaleX
+                                const pScaleYToApply = placeholderConfig.scaleY; // Placeholder's original scaleY
+
+                                // Visual dimensions of the placeholder area
+                                const visualPlaceholderWidth = pConfigWidth * pScaleXToApply;
+                                const visualPlaceholderHeight = pConfigHeight * pScaleYToApply;
+
+                                // Visual top-left corner of the placeholder area on canvas
+                                let visualPlaceholderLeft = placeholderConfig.left;
+                                let visualPlaceholderTop = placeholderConfig.top;
+
+                                if (placeholderConfig.originX === 'center') {
+                                    visualPlaceholderLeft = placeholderConfig.left - (visualPlaceholderWidth / 2);
+                                } else if (placeholderConfig.originX === 'right') {
+                                    visualPlaceholderLeft = placeholderConfig.left - visualPlaceholderWidth;
                                 }
+
+                                if (placeholderConfig.originY === 'center') {
+                                    visualPlaceholderTop = placeholderConfig.top - (visualPlaceholderHeight / 2);
+                                } else if (placeholderConfig.originY === 'bottom') {
+                                    visualPlaceholderTop = placeholderConfig.top - visualPlaceholderHeight;
+                                }
+
+                                // 2. Calculate scale factor for the uploaded image to cover this viewport
+                                const imgNativeWidth = img.width;  // fabric.Image gives native dimensions
+                                const imgNativeHeight = img.height;
+
+                                const placeholderAspectRatio = visualPlaceholderWidth / visualPlaceholderHeight;
+                                const imageAspectRatio = imgNativeWidth / imgNativeHeight;
+
+                                if(window.CKPP_DEBUG_MODE) {
+                                    console.log('[CKPP PREVIEW] Placeholder Visual WxH:', visualPlaceholderWidth, 'x', visualPlaceholderHeight);
+                                    console.log('[CKPP PREVIEW] Placeholder Visual L,T:', visualPlaceholderLeft, visualPlaceholderTop);
+                                    console.log('[CKPP PREVIEW] Uploaded Img Native WxH:', imgNativeWidth, 'x', imgNativeHeight);
+                                    console.log('[CKPP PREVIEW] Placeholder Aspect:', placeholderAspectRatio, 'Image Aspect:', imageAspectRatio);
+                                }
+
+                                let scaleFactor;
+                                if (imageAspectRatio >= placeholderAspectRatio) { // Image is wider or same aspect as placeholder
+                                    scaleFactor = visualPlaceholderHeight / imgNativeHeight; // Fit to placeholder height
+                                } else { // Image is taller than placeholder
+                                    scaleFactor = visualPlaceholderWidth / imgNativeWidth; // Fit to placeholder width
+                                }
+
+                                // 3. Calculate top-left position for the image object on canvas
+                                const finalImageCanvasLeft = visualPlaceholderLeft - ((imgNativeWidth * scaleFactor) - visualPlaceholderWidth) / 2;
+                                const finalImageCanvasTop = visualPlaceholderTop - ((imgNativeHeight * scaleFactor) - visualPlaceholderHeight) / 2;
+
+                                // 4. Define the clipPath. It's in the image's local (unscaled) coordinates.
+                                const clipPathRectLeft = (visualPlaceholderLeft - finalImageCanvasLeft) / scaleFactor;
+                                const clipPathRectTop = (visualPlaceholderTop - finalImageCanvasTop) / scaleFactor;
+                                const clipPathRectWidth = visualPlaceholderWidth / scaleFactor;
+                                const clipPathRectHeight = visualPlaceholderHeight / scaleFactor;
+
+                                if(window.CKPP_DEBUG_MODE) {
+                                    console.log('[CKPP PREVIEW] Calculated ScaleFactor:', scaleFactor);
+                                    console.log('[CKPP PREVIEW] Final Image Canvas L,T:', finalImageCanvasLeft, finalImageCanvasTop);
+                                    console.log('[CKPP PREVIEW] ClipPath Rect L,T:', clipPathRectLeft, clipPathRectTop);
+                                    console.log('[CKPP PREVIEW] ClipPath Rect WxH (local coords):', clipPathRectWidth, 'x', clipPathRectHeight);
+                                }
+
+                                img.set({
+                                    left: finalImageCanvasLeft,
+                                    top: finalImageCanvasTop,
+                                    angle: placeholderConfig.angle,
+                                    originX: 'left', // Crucial: Set image origin to top-left for consistent positioning
+                                    originY: 'top',  // Crucial: Set image origin to top-left
+                                    selectable: false,
+                                    evented: false,
+                                    scaleX: scaleFactor,
+                                    scaleY: scaleFactor,
+                                    // clipPath: new fabric.Rect({
+                                    //     originX: 'left', // Clip path rect's own origin
+                                    //     originY: 'top',  // Clip path rect's own origin
+                                    //     left: clipPathRectLeft,
+                                    //     top: clipPathRectTop,
+                                    //     width: clipPathRectWidth,
+                                    //     height: clipPathRectHeight
+                                    // })
+                                });
+
                                 fabricCanvas.add(img);
                                 fabricCanvas.renderAll();
                             }, { crossOrigin: 'anonymous' });
@@ -684,7 +855,13 @@
                 });
                 fabricCanvas.discardActiveObject();
                 fabricCanvas.selection = false;
-                fabricCanvas.forEachObject(function(obj) { obj.selectable = false; });
+                fabricCanvas.forEachObject(function(obj) { 
+                    obj.selectable = false;
+                    obj.evented = false;
+                    if (obj.isType('i-text') || obj.isType('textbox')) {
+                        obj.editable = false;
+                    }
+                });
             });
             // Debug panel
             if (window.CKPP_DEBUG_MODE) {
@@ -854,8 +1031,8 @@
                         reader.onload = function(ev) {
                             if (previewImgSanitized) {
                                 previewImgSanitized.src = ev.target.result;
-                                previewImgSanitized.style.display = 'block';
-                                previewImgSanitized.setAttribute('aria-label', 'Image preview');
+                                // previewImgSanitized.style.display = 'block'; // Ensure it remains hidden
+                                previewImgSanitized.setAttribute('aria-label', 'Image preview (hidden)');
                                 // Update config and re-render live preview canvas after preview image is updated
                                 if (typeof updateLivePreviewFromInputs === 'function') {
                                     updateLivePreviewFromInputs(config);
@@ -873,8 +1050,8 @@
                                 fileInput.setAttribute('data-uploaded-url', data.data.url);
                                 if (previewImgSanitized) {
                                     previewImgSanitized.src = data.data.url;
-                                    previewImgSanitized.style.display = 'block';
-                                    previewImgSanitized.setAttribute('aria-label', 'Image preview');
+                                    // previewImgSanitized.style.display = 'block'; // Ensure it remains hidden
+                                    previewImgSanitized.setAttribute('aria-label', 'Image preview (hidden)');
                                     // Update config and re-render live preview canvas after preview image is updated
                                     if (typeof updateLivePreviewFromInputs === 'function') {
                                         updateLivePreviewFromInputs(config);
@@ -889,7 +1066,7 @@
                     } else {
                         if (previewImgSanitized) {
                             previewImgSanitized.src = '';
-                            previewImgSanitized.style.display = 'none';
+                            previewImgSanitized.style.display = 'none'; // Explicitly ensure it's hidden when cleared
                             // Update config and re-render live preview canvas after image is cleared
                             if (typeof updateLivePreviewFromInputs === 'function') {
                                 updateLivePreviewFromInputs(config);
@@ -1312,9 +1489,9 @@
     `;
     document.head.appendChild(style);
     // Add this function after renderLivePreview
-    function updateLivePreviewFromInputs(config) {
+    function updateLivePreviewFromInputs(currentDesignConfig) {
         // Clone config deeply to avoid mutating original
-        var updatedConfig = JSON.parse(JSON.stringify(config));
+        var updatedConfig = JSON.parse(JSON.stringify(currentDesignConfig));
         var inputObjs = (updatedConfig.objects || []).map(function(obj, idx) { return {obj, idx}; }).filter(function(pair) {
             return pair.obj.type === 'i-text' || pair.obj.type === 'textbox' || pair.obj.placeholderType === 'image';
         });
@@ -1323,6 +1500,7 @@
             var idx = pair.idx;
             var rawLabel = obj.label || (obj.type === 'i-text' ? 'Text ' + (idx+1) : obj.type === 'textbox' ? 'Text Box ' + (idx+1) : obj.placeholderType === 'image' ? 'Image Upload' : 'Field ' + (idx+1));
             var sanitizedLabel = rawLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
             if (obj.type === 'i-text') {
                 var input = document.getElementById('ckpp-text-input-' + sanitizedLabel + '-' + idx);
                 if (input) obj.text = input.value;
@@ -1331,17 +1509,88 @@
                 if (textarea) obj.text = textarea.value;
             } else if (obj.placeholderType === 'image') {
                 var fileInput = document.getElementById('ckpp-image-input-' + sanitizedLabel + '-' + idx);
-                var uploadedUrl = fileInput ? fileInput.getAttribute('data-uploaded-url') : '';
+                var uploadedUrl = fileInput ? fileInput.getAttribute('data-uploaded-url') : null;
                 var previewImg = document.getElementById('ckpp-image-preview-' + sanitizedLabel + '-' + idx);
+
                 if (uploadedUrl) {
-                    obj.src = uploadedUrl;
-                } else if (previewImg && previewImg.src && previewImg.style.display !== 'none') {
+                    obj.src = uploadedUrl; // Prefer successfully uploaded URL
+                } else if (previewImg && previewImg.src && typeof previewImg.src === 'string' && previewImg.src.startsWith('data:image')) {
+                    // If no uploaded URL, use the DataURL from the (hidden) preview img tag if it's a valid image DataURL
                     obj.src = previewImg.src;
                 } else {
-                    obj.src = '';
+                    obj.src = ''; // Otherwise, no valid source
                 }
             }
         });
-        renderLivePreview(updatedConfig);
+
+        // ---- NEW CODE TO PREPARE SUBMISSION DATA ----
+        const dataForSubmission = {};
+        (currentDesignConfig.objects || []).forEach(function(originalObjConfig, originalIdx) {
+            const currentValObj = updatedConfig.objects[originalIdx]; // Get value from the potentially modified object
+
+            if (originalObjConfig.type === 'i-text') {
+                dataForSubmission['text_' + originalIdx] = currentValObj.text || '';
+            } else if (originalObjConfig.type === 'textbox') {
+                dataForSubmission['textbox_' + originalIdx] = currentValObj.text || '';
+            } else if (originalObjConfig.placeholderType === 'image') {
+                dataForSubmission['image_' + originalIdx] = currentValObj.src || '';
+            }
+        });
+
+        dataForSubmission['ckpp_unique'] = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+        // --- CAPTURE LIVE PREVIEW CANVAS AS IMAGE ---
+        if (window.ckppLivePreviewCanvas && typeof window.ckppLivePreviewCanvas.toDataURL === 'function') {
+            try {
+                dataForSubmission['preview_image'] = window.ckppLivePreviewCanvas.toDataURL('image/png', 0.92);
+            } catch (e) {
+                if (window.CKPP_DEBUG_MODE) console.warn('[CKPP] Could not capture live preview image:', e);
+            }
+        }
+        // --- END CAPTURE ---
+
+        const addToCartForm = document.querySelector('form.cart');
+        if (addToCartForm) {
+            let hiddenInput = addToCartForm.querySelector('input[name="ckpp_personalization_data"]');
+            if (!hiddenInput) {
+                hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'ckpp_personalization_data';
+                addToCartForm.appendChild(hiddenInput);
+            }
+            hiddenInput.value = JSON.stringify(dataForSubmission);
+            if (window.CKPP_DEBUG_MODE) {
+                console.log('[CKPP] Updated hidden input ckpp_personalization_data (from inline):', hiddenInput.value);
+            }
+        }
+        // ---- END NEW CODE ----
+
+        renderLivePreview(updatedConfig); // This uses updatedConfig for the canvas
     }
+    // --- Ensure preview image is injected into hidden input before add-to-cart ---
+    function ckppInjectPreviewImageToHiddenInput() {
+        var addToCartForm = document.querySelector('form.cart');
+        if (!addToCartForm) return;
+        var hiddenInput = addToCartForm.querySelector('input[name="ckpp_personalization_data"]');
+        if (!hiddenInput) return;
+        var data = {};
+        try {
+            data = JSON.parse(hiddenInput.value);
+        } catch (e) {}
+        if (window.ckppLivePreviewCanvas && typeof window.ckppLivePreviewCanvas.toDataURL === 'function') {
+            data['preview_image'] = window.ckppLivePreviewCanvas.toDataURL('image/png', 0.92);
+        }
+        hiddenInput.value = JSON.stringify(data);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var addToCartForm = document.querySelector('form.cart');
+        if (addToCartForm) {
+            addToCartForm.addEventListener('submit', ckppInjectPreviewImageToHiddenInput, true);
+        }
+        var addToCartBtn = document.querySelector('form.cart button[type="submit"], form.cart input[type="submit"]');
+        if (addToCartBtn) {
+            addToCartBtn.addEventListener('click', ckppInjectPreviewImageToHiddenInput, true);
+        }
+    });
 })(jQuery); 

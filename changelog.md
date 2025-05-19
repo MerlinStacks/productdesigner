@@ -1,5 +1,9 @@
 # CustomKings Product Personalizer – Changelog
 
+## [1.0.2] - 2025-05-19
+### Fixed
+- Resolved an issue where the live preview image was not consistently displaying on the cart and checkout pages.
+
 ## Version 1.1.4 – 2025-06-09
 
 **What's New & Fixed:**

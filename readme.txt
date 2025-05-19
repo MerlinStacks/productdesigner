@@ -3,7 +3,7 @@ Contributors: customkings
 Tags: woocommerce, personalization, product designer, customizer, print-ready
 Requires at least: 5.8
 Tested up to: 6.2
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -31,6 +31,9 @@ Yes, admins can generate and download print-ready PDF files for each order item.
 3. Order view with personalization preview
 
 == Changelog ==
+= 1.0.2 - 2025-05-19 =
+* Fix: Resolved issue where live preview image was not consistently displaying on cart and checkout pages.
+
 = 1.1.4 – 2025-06-09 =
 * Design cards in the admin now show live preview thumbnails. No more broken image icons—previews update instantly when you save a design.
 * Modern, accessible card grid for designs. Cleaner, more robust logic for preview images.

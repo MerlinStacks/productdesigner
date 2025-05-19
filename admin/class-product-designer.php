@@ -91,25 +91,121 @@ class CKPP_Product_Designer {
      */
     public function ajax_save_design() {
         check_ajax_referer( 'ckpp_designer_nonce', 'nonce' );
-        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( __( 'Unauthorized', 'customkings' ) );
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( [ 'message' => __( 'Unauthorized', 'customkings' ) ] );
+        }
+        
+        // Validate required inputs
+        if ( ! isset( $_POST['designId'] ) || ! isset( $_POST['title'] ) || ! isset( $_POST['config'] ) ) {
+            wp_send_json_error( [ 'message' => __( 'Missing required fields', 'customkings' ) ] );
+        }
+        
+        $debug_mode = get_option('ckpp_debug_mode', false);
         $design_id = intval( $_POST['designId'] );
         $title = sanitize_text_field( $_POST['title'] );
         $config = wp_unslash( $_POST['config'] );
         $preview = isset($_POST['preview']) ? $_POST['preview'] : '';
-        if ( $design_id ) {
-            wp_update_post([ 'ID' => $design_id, 'post_title' => $title ]);
-            update_post_meta( $design_id, '_ckpp_design_config', $config );
-            if ($preview && strpos($preview, 'data:image/png;base64,') === 0) {
-                update_post_meta( $design_id, '_ckpp_design_preview', $preview );
+        
+        // Debug logging
+        if ( $debug_mode ) {
+            error_log('CKPP Debug: Saving design ID: ' . $design_id);
+            error_log('CKPP Debug: Design title: ' . $title);
+        }
+        
+        // Ensure config is valid JSON if it's a string
+        if ( is_string( $config ) ) {
+            // Check if the config is already a JSON string
+            json_decode( $config );
+            if ( json_last_error() !== JSON_ERROR_NONE ) {
+                // If not valid JSON, try to encode it
+                $config = wp_json_encode( $config );
+                if ( $debug_mode ) {
+                    error_log('CKPP Debug: Config was not valid JSON, encoded it');
+                }
             }
         } else {
-            $design_id = wp_insert_post([ 'post_type' => 'ckpp_design', 'post_title' => $title, 'post_status' => 'publish' ]);
-            update_post_meta( $design_id, '_ckpp_design_config', $config );
-            if ($preview && strpos($preview, 'data:image/png;base64,') === 0) {
-                update_post_meta( $design_id, '_ckpp_design_preview', $preview );
+            // If not a string, convert to JSON
+            $config = wp_json_encode( $config );
+            if ( $debug_mode ) {
+                error_log('CKPP Debug: Config was not a string, encoded it');
             }
         }
-        wp_send_json_success([ 'designId' => $design_id ]);
+        
+        // Validate design ID exists if updating
+        if ( $design_id ) {
+            $post_type = get_post_type( $design_id );
+            $post_status = get_post_status( $design_id );
+            
+            // Check if design exists and is not in trash
+            if ( $post_type !== 'ckpp_design' || $post_status === 'trash' ) {
+                if ( $debug_mode ) {
+                    error_log('CKPP Debug: Invalid design ID, not found, or trashed: ' . $design_id . ', type: ' . $post_type . ', status: ' . $post_status);
+                }
+                wp_send_json_error( [ 'message' => __( 'Design not found', 'customkings' ) ] );
+            }
+        }
+        
+        try {
+            if ( $design_id ) {
+                // Update existing design
+                $result = wp_update_post([
+                    'ID' => $design_id, 
+                    'post_title' => $title
+                ], true);
+                
+                if ( is_wp_error( $result ) ) {
+                    if ( $debug_mode ) {
+                        error_log('CKPP Debug: Error updating post: ' . $result->get_error_message());
+                    }
+                    wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+                }
+                
+                update_post_meta( $design_id, '_ckpp_design_config', $config );
+                
+                if ( $preview && strpos( $preview, 'data:image/png;base64,' ) === 0 ) {
+                    update_post_meta( $design_id, '_ckpp_design_preview', $preview );
+                }
+            } else {
+                // Create new design
+                $result = wp_insert_post([
+                    'post_type' => 'ckpp_design', 
+                    'post_title' => $title, 
+                    'post_status' => 'publish'
+                ], true);
+                
+                if ( is_wp_error( $result ) ) {
+                    if ( $debug_mode ) {
+                        error_log('CKPP Debug: Error creating post: ' . $result->get_error_message());
+                    }
+                    wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+                }
+                
+                $design_id = $result;
+                update_post_meta( $design_id, '_ckpp_design_config', $config );
+                
+                if ( $preview && strpos( $preview, 'data:image/png;base64,' ) === 0 ) {
+                    update_post_meta( $design_id, '_ckpp_design_preview', $preview );
+                }
+            }
+            
+            if ( $debug_mode ) {
+                error_log('CKPP Debug: Design saved successfully, ID: ' . $design_id);
+            }
+            
+            wp_send_json_success([
+                'designId' => $design_id,
+                'message' => __( 'Design saved successfully', 'customkings' )
+            ]);
+            
+        } catch ( Exception $e ) {
+            if ( $debug_mode ) {
+                error_log('CKPP Debug: Exception saving design: ' . $e->getMessage());
+            }
+            wp_send_json_error([
+                'message' => __( 'Error saving design', 'customkings' ),
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 
     /**
@@ -117,11 +213,89 @@ class CKPP_Product_Designer {
      */
     public function ajax_load_design() {
         check_ajax_referer( 'ckpp_designer_nonce', 'nonce' );
-        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( __( 'Unauthorized', 'customkings' ) );
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( [ 'message' => __( 'Unauthorized', 'customkings' ) ] );
+        }
+        
+        $debug_mode = get_option('ckpp_debug_mode', false);
+        
+        // Validate required parameters
+        if ( ! isset( $_GET['designId'] ) ) {
+            if ( $debug_mode ) {
+                error_log('CKPP Debug: Missing design ID in load request');
+            }
+            wp_send_json_error( [ 'message' => __( 'Missing design ID', 'customkings' ) ] );
+        }
+        
         $design_id = intval( $_GET['designId'] );
-        $config = get_post_meta( $design_id, '_ckpp_design_config', true );
-        $title = get_the_title( $design_id );
-        wp_send_json_success([ 'config' => $config, 'title' => $title ]);
+        
+        if ( $debug_mode ) {
+            error_log('CKPP Debug: Loading design ID: ' . $design_id);
+        }
+        
+        // Validate design exists
+        if ( ! $design_id ) {
+            if ( $debug_mode ) {
+                error_log('CKPP Debug: Missing design ID: ' . $design_id);
+            }
+            wp_send_json_error( [ 'message' => __( 'Design not found', 'customkings' ) ] );
+        }
+        
+        // Check post type and status
+        $post_type = get_post_type( $design_id );
+        $post_status = get_post_status( $design_id );
+        if ( $post_type !== 'ckpp_design' || $post_status === 'trash' ) {
+            if ( $debug_mode ) {
+                error_log('CKPP Debug: Invalid design ID, not found, or trashed: ' . $design_id . ', type: ' . $post_type . ', status: ' . $post_status);
+            }
+            wp_send_json_error( [ 'message' => __( 'Design not found', 'customkings' ) ] );
+        }
+        
+        try {
+            $config = get_post_meta( $design_id, '_ckpp_design_config', true );
+            $title = get_the_title( $design_id );
+            
+            // Handle empty config
+            if ( empty( $config ) ) {
+                if ( $debug_mode ) {
+                    error_log('CKPP Debug: Empty config for design ID: ' . $design_id);
+                }
+                // Return empty object rather than null to prevent JS errors
+                $config = '{}';
+            }
+            
+            // Ensure we return decoded config to avoid double-encoding issues
+            $config_data = $config;
+            // Only decode if it's a string and valid JSON
+            if (is_string($config)) {
+                $decoded = json_decode($config, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $config_data = $decoded;
+                    if ($debug_mode) {
+                        error_log('CKPP Debug: Returning decoded config object to prevent double-encoding');
+                    }
+                }
+            }
+            
+            if ( $debug_mode ) {
+                error_log('CKPP Debug: Successfully loaded design: ' . $title);
+            }
+            
+            wp_send_json_success([
+                'config' => $config_data,
+                'title' => $title,
+                'message' => __( 'Design loaded successfully', 'customkings' )
+            ]);
+            
+        } catch ( Exception $e ) {
+            if ( $debug_mode ) {
+                error_log('CKPP Debug: Exception loading design: ' . $e->getMessage());
+            }
+            wp_send_json_error([
+                'message' => __( 'Error loading design', 'customkings' ),
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 
     /**
