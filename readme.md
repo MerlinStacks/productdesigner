@@ -9,7 +9,13 @@ https://customkings.com.au/
 ## Description
 This plugin enables e-commerce store customers to personalize specific products by filling in admin-defined placeholders before adding them to the cart. It features a visual admin designer, real-time preview, and generates print-ready files for order fulfillment.
 
-**New in this version:**
+**New in version 1.0.3 (2025-05-19):**
+- Designer interface now has a cleaner look with no scrollbars
+- Fixed font selection issues in the designer
+- Designer now positions properly centered on the page regardless of WordPress sidebar
+- Enhanced CSS for better overall user experience and accessibility
+
+**Previous updates:**
 - Accent color picker UI is now clean and accessible: only one preview box, a dedicated button, and no duplicate or hidden color boxes.
 - Preview box is keyboard accessible and can be clicked to open the color picker.
 - All debug/test text and extra UI elements have been removed from the color picker UI.

@@ -1,21 +1,56 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit bootstrap="tests/bootstrap.php"
-         colors="true"
-         verbose="true"
-         stopOnFailure="false"
-         stopOnError="false"
-         stopOnWarning="false"
-         stopOnIncomplete="false"
-         stopOnSkipped="false"
-         stopOnRisky="false">
+<phpunit 
+    bootstrap="tests/bootstrap.php"
+    colors="true"
+    verbose="true"
+    backupGlobals="false"
+    backupStaticAttributes="false"
+    convertErrorsToExceptions="true"
+    convertNoticesToExceptions="true"
+    convertWarningsToExceptions="true"
+    processIsolation="false"
+    stopOnFailure="false"
+    stopOnError="false"
+    stopOnWarning="false"
+    stopOnIncomplete="false"
+    stopOnSkipped="false"
+    stopOnRisky="false">
+
     <testsuites>
-        <testsuite name="CustomKings Plugin Test Suite">
-            <directory>./tests/</directory>
+        <testsuite name="Unit">
+            <directory suffix="Test.php">./tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Integration">
+            <directory suffix="Test.php">./tests/Integration</directory>
         </testsuite>
     </testsuites>
+
+    <coverage processUncoveredFiles="true">
+        <include>
+            <directory suffix=".php">./includes</directory>
+        </include>
+        <exclude>
+            <directory suffix=".php">./vendor</directory>
+            <directory suffix=".php">./tests</directory>
+            <file>./CustomKings.php</file>
+        </exclude>
+    </coverage>
+
     <php>
-        <env name="WP_TESTS_DIR" value="/tmp/wordpress-tests-lib"/>
-        <env name="WP_PLUGIN_DIR" value="${PWD}"/>
+        <env name="WP_TESTS_DIR" value="C:/Users/ratte/AppData/Local/Temp/wordpress-tests-lib"/>
+        <env name="WP_TESTS_CONFIG_FILE_PATH" value="C:/Users/ratte/AppData/Local/Temp/wordpress-tests-lib/wp-tests-config.php"/>
+        <env name="WP_PLUGIN_DIR" value="."/>
         <env name="WP_DEBUG" value="1"/>
+        <env name="WP_DEFAULT_THEME" value="twentytwenty"/>
     </php>
+
+    <filter>
+        <whitelist processUncoveredFilesFromWhitelist="true">
+            <directory suffix=".php">./includes</directory>
+            <exclude>
+                <directory suffix=".php">./vendor</directory>
+                <directory suffix=".php">./tests</directory>
+            </exclude>
+        </whitelist>
+    </filter>
 </phpunit> 

@@ -1,5 +1,12 @@
 # CustomKings Product Personalizer – Changelog
 
+## [1.0.3] - 2025-05-19
+### Fixed
+- Removed scrollbars from designer interface for a cleaner look
+- Fixed font selection issues in the designer
+- Improved designer positioning to center properly on the page regardless of WordPress sidebar
+- Enhanced CSS for better overall user experience and accessibility
+
 ## [1.0.2] - 2025-05-19
 ### Fixed
 - Resolved an issue where the live preview image was not consistently displaying on the cart and checkout pages.

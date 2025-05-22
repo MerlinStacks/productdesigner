@@ -6,29 +6,120 @@ html, body {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  /* Only hide horizontal scrollbar but allow vertical scrolling if needed */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
+
+/* Hide scrollbars visually but allow scrolling functionality */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  background: transparent;
+}
+
+/* Firefox - hide scrollbar visually but allow functionality */
+html, body {
+  scrollbar-width: none;
+}
+
+/* IE - hide scrollbar visually but allow functionality */
+html, body {
+  -ms-overflow-style: none;
+}
+
 #ckpp-designer-overlay { z-index: 10000; }
 #ckpp-designer-window { border-radius: 8px; box-shadow: 0 4px 32px rgba(0,0,0,0.2); }
 #ckpp-designer-close { background: none; border: none; font-size: 2em; line-height: 1; cursor: pointer; }
 #ckpp-canvas { background: #f8f8f8; }
 #ckpp-properties input[type="text"], #ckpp-properties input[type="number"] { width: 80px; margin-bottom: 0.5em; }
 
-/* Remove default WordPress admin .wrap margin and set full width */
+/* Canvas container - responsive with 1:1 aspect ratio */
+.ckpp-canvas-container {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  height: 600px; /* Fixed height instead of padding-bottom */
+  margin: 0 auto;
+  overflow: hidden;
+  background: #f3f3f3;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border: 3px solid #fec610;
+}
+
+/* Make container responsive on smaller screens */
+@media (max-width: 650px) {
+  .ckpp-canvas-container {
+    height: 0; /* Reset height */
+    padding-bottom: 100%; /* Use aspect ratio trick on small screens */
+    max-width: 100%; /* Allow full width on mobile */
+  }
+}
+
+/* Position the canvas absolutely within the container */
+.ckpp-canvas-container canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important; /* Force width */
+  height: 100% !important; /* Force height */
+  background: transparent;
+  display: block;
+}
+
+/* WordPress admin .wrap styling for proper positioning */
 .wrap {
   margin: 0 !important;
   padding: 0 !important;
-  width: 100vw !important;
-  max-width: 100vw !important;
+  width: calc(100% - 20px) !important; /* Subtract padding/margin */
+  max-width: none !important;
   box-sizing: border-box;
+  position: relative !important;
+  left: 0 !important;
 }
 
-/* Remove previous global flex centering */
-/* .ckpp-admin > div, #ckpp-product-designer-root > div, #ckpp-product-designer-root {
-  display: flex !important;
-  flex-direction: column;
-  align-items: center;
+/* Additional styling for the designer root to ensure it's properly centered */
+#ckpp-product-designer-root {
+  position: relative;
   width: 100%;
-} */
+  left: 0;
+  right: 0;
+  margin-left: 0;
+  margin-right: 0;
+  box-sizing: border-box;
+  min-height: calc(100vh - 32px); /* Account for WordPress admin bar */
+  height: auto;
+  overflow-y: auto; /* Allow vertical scrolling within the designer if needed */
+  overflow-x: hidden; /* Hide horizontal scrollbar */
+}
+
+/* Custom scrollbar just for the designer content if needed */
+#ckpp-product-designer-root::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  background: transparent;
+}
+
+#ckpp-product-designer-root::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#ckpp-product-designer-root::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+#ckpp-product-designer-root::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Firefox */
+#ckpp-product-designer-root {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+}
 
 /* Center only the main designer area (canvas + sidebars) */
 #ckpp-product-designer-root > div {
@@ -37,6 +128,29 @@ html, body {
   justify-content: center;
   align-items: flex-start;
   width: 100%;
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  gap: 32px;
+  box-sizing: border-box;
+  margin: 0 auto;
+}
+
+/* Make tools and properties panels adapt to screen size */
+#ckpp-product-designer-root .tools-sidebar,
+#ckpp-product-designer-root .properties-sidebar {
+  width: 160px;
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+/* Center canvas area with responsive sizing */
+#ckpp-product-designer-root .canvas-area {
+  flex: 1;
+  min-width: 300px; /* Minimum width before wrapping */
+  max-width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* Optionally, ensure the top bar stays as a row */
@@ -49,4 +163,56 @@ html, body {
   gap: 16px;
   width: 100%;
   margin-bottom: 24px;
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+}
+
+/* Responsive templates UI */
+.ckpp-templates-ui {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+/* Fix for WordPress admin positioning conflicts */
+body.wp-admin #wpbody-content {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Visually hide scrollbars but allow functionality in WordPress admin interface */
+body.wp-admin {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+body.wp-admin #wpwrap,
+body.wp-admin #wpcontent,
+body.wp-admin #wpbody,
+body.wp-admin #wpbody-content {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+/* Media query for smaller screens */
+@media (max-width: 992px) {
+  #ckpp-product-designer-root > div {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  #ckpp-product-designer-root .tools-sidebar,
+  #ckpp-product-designer-root .properties-sidebar {
+    width: 100%;
+    max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  #ckpp-product-designer-root .canvas-area {
+    width: 100%;
+    max-width: 600px;
+  }
 } 

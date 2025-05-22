@@ -208,7 +208,7 @@
         }).join('');
         
         var templateUI = `
-            <div style="display:flex; align-items:center; gap:16px; margin-bottom:18px;">
+            <div class="ckpp-templates-ui">
                 <label for='ckpp-design-name' style='font-size:16px;font-weight:bold;'>Design Name:</label>
                 <input id='ckpp-design-name' type='text' value='${window.ckppDesignName.replace(/'/g, "&#39;")}' style='font-size:16px;padding:4px 10px;border-radius:6px;border:1px solid #ccc;width:220px;max-width:100%;margin-right:16px;' />
                 <button id="ckpp-save-template" style="background:#fec610; color:#222; border:none; border-radius:6px; padding:7px 18px; font-weight:bold; cursor:pointer;">Save as Template</button>
@@ -237,22 +237,22 @@
         // --- End Tools Sidebar ---
         
         root.innerHTML = templateUI + `
-            <div style=\"background:#fafbfc; padding:32px; border-radius:18px; box-shadow:0 2px 12px rgba(0,0,0,0.04); max-width:1100px; margin:32px auto;\">
+            <div style=\"background:#fafbfc; padding:32px; border-radius:18px; box-shadow:0 2px 12px rgba(0,0,0,0.04); max-width:1200px; width:100%; margin:0 auto; box-sizing:border-box;\">
               <div style=\"display:flex; gap:32px; align-items:flex-start;\">
                 <!-- Tools Sidebar -->
-                <div style=\"width:160px; min-width:120px;\">
+                <div class="tools-sidebar" style=\"width:160px; min-width:120px;\">
                   <div style=\"color:#fec610; font-weight:bold; font-size:18px; margin-bottom:18px;\">Tools</div>
                   ${toolsSidebar}
                 </div>
                 <!-- Center Canvas Area -->
-                <div style=\"flex:1; text-align:center; display:flex; flex-direction:column; align-items:center;\">
-                  <div style=\"width:100%; max-width:1000px; aspect-ratio:1/1; background:#f3f3f3; display:flex; align-items:center; justify-content:center; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); border:3px solid #fec610;\">
-                    <canvas id=\"ckpp-canvas\" width=\"1000\" height=\"1000\" style=\"width:100%; height:100%; max-width:1000px; max-height:1000px; background:transparent; display:block;\"></canvas>
+                <div class="canvas-area" style=\"flex:1; text-align:center; display:flex; flex-direction:column; align-items:center;\">
+                  <div class="ckpp-canvas-container">
+                    <canvas id=\"ckpp-canvas\" width=\"1000\" height=\"1000\"></canvas>
                   </div>
                   <div style=\"margin-top:1em;\"></div>
                 </div>
                 <!-- Properties/Layers Sidebar -->
-                <div style="width:220px; min-width:160px;">
+                <div class="properties-sidebar" style="width:220px; min-width:160px;">
                   <div style="color:#fec610; font-weight:bold; font-size:18px; margin-bottom:18px;">Layers</div>
                   <div id="ckpp-layers-panel" style="margin-bottom:32px;"></div>
                   <div style="color:#fec610; font-weight:bold; font-size:18px; margin-bottom:18px;">Properties</div>
@@ -312,14 +312,127 @@
     function setupMinimalDesigner(initialConfig) {
         let lastSaveStatus = '';
         let saveTimeout = null;
-        var fabricCanvas = new fabric.Canvas('ckpp-canvas');
+        let resizeTimeout = null;
+        
+        // Initialize the Fabric.js canvas with fixed virtual dimensions
+        const CANVAS_VIRTUAL_WIDTH = 1000;
+        const CANVAS_VIRTUAL_HEIGHT = 1000;
+        
+        var fabricCanvas = new fabric.Canvas('ckpp-canvas', {
+            width: CANVAS_VIRTUAL_WIDTH,
+            height: CANVAS_VIRTUAL_HEIGHT,
+            selection: false,
+            allowTouchScrolling: true
+        });
+        
         window.ckppFabricCanvas = fabricCanvas;
         
+        // Handle canvas resize properly
+        function handleCanvasResize() {
+            // Clear any pending resize
+            if (resizeTimeout) {
+                clearTimeout(resizeTimeout);
+            }
+            
+            // Use setTimeout to debounce resize events
+            resizeTimeout = setTimeout(function() {
+                const canvasContainer = document.querySelector('.ckpp-canvas-container');
+                if (!canvasContainer) return;
+                
+                // Get container's computed dimensions
+                const containerWidth = canvasContainer.offsetWidth;
+                const containerHeight = canvasContainer.offsetHeight;
+                
+                if (containerWidth <= 0 || containerHeight <= 0) return;
+                
+                // The canvas element should already have correct dimensions from CSS
+                const canvasEl = document.getElementById('ckpp-canvas');
+                if (!canvasEl) return;
+                
+                // Ensure canvas doesn't have inline dimensions that would override CSS
+                canvasEl.removeAttribute('style');
+                canvasEl.style.width = '100%';
+                canvasEl.style.height = '100%';
+                
+                // Keep fabric canvas dimensions at 1000x1000 virtual units
+                fabricCanvas.setWidth(CANVAS_VIRTUAL_WIDTH);
+                fabricCanvas.setHeight(CANVAS_VIRTUAL_HEIGHT);
+                
+                // Calculate zoom factor - use the smaller dimension to ensure it fits
+                const zoomFactor = Math.min(
+                    canvasEl.offsetWidth / CANVAS_VIRTUAL_WIDTH,
+                    canvasEl.offsetHeight / CANVAS_VIRTUAL_HEIGHT
+                );
+                
+                if (window.CKPP_DEBUG_MODE) {
+                    console.log(`CKPP Debug: Container: ${containerWidth}x${containerHeight}`);
+                    console.log(`CKPP Debug: Canvas element: ${canvasEl.offsetWidth}x${canvasEl.offsetHeight}`);
+                    console.log(`CKPP Debug: Setting zoom to ${zoomFactor}`);
+                }
+                
+                // Apply zoom (scale) factor to the Fabric.js canvas
+                fabricCanvas.setZoom(zoomFactor);
+                fabricCanvas.requestRenderAll();
+            }, 250); // 250ms debounce
+        }
+        
+        // Create a mutation observer to monitor and prevent style changes
+        function setupMutationObserver() {
+            const canvasEl = document.getElementById('ckpp-canvas');
+            if (!canvasEl || typeof MutationObserver === 'undefined') return;
+            
+            // Create observer to watch for style attribute changes
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                        // Force our CSS dimensions
+                        canvasEl.style.width = '100%';
+                        canvasEl.style.height = '100%';
+                    }
+                });
+            });
+            
+            // Start observing
+            observer.observe(canvasEl, { 
+                attributes: true,
+                attributeFilter: ['style']
+            });
+            
+            // Store for cleanup
+            window.ckppMutationObserver = observer;
+        }
+        
+        // Initial resize after DOM is ready
+        setTimeout(handleCanvasResize, 100);
+        
+        // Set up mutation observer after DOM is ready
+        setTimeout(setupMutationObserver, 150);
+        
+        // Set up resize listener
+        window.addEventListener('resize', handleCanvasResize);
+        
+        // Also resize on load
+        window.addEventListener('load', handleCanvasResize);
+        
+        // Clean up on unload
+        window.addEventListener('beforeunload', function() {
+            window.removeEventListener('resize', handleCanvasResize);
+            window.removeEventListener('load', handleCanvasResize);
+            
+            // Disconnect mutation observer
+            if (window.ckppMutationObserver) {
+                window.ckppMutationObserver.disconnect();
+            }
+        });
+
         // If we have an initial configuration, load it
         if (initialConfig) {
             try {
                 fabricCanvas.loadFromJSON(initialConfig, function() {
                     fabricCanvas.renderAll();
+                    // After loading, make sure zoom is correct
+                    setTimeout(handleCanvasResize, 100);
+                    
                     if (window.CKPP_DEBUG_MODE) {
                         console.log('CKPP Debug: Successfully loaded initial canvas configuration');
                     }
@@ -496,8 +609,17 @@
                     return { name: f.name, value: f.name, url: f.url, isCustom: true };
                 }).concat(webSafeFonts);
                 var currentFont = sel.fontFamily || 'Arial';
+                
+                // Debug font information to help diagnose issues
+                if (window.CKPP_DEBUG_MODE) {
+                    console.log('CKPP Debug: Current font:', currentFont);
+                    console.log('CKPP Debug: Available fonts:', allFonts);
+                }
+                
                 var fontOptions = allFonts.map(function(f) {
-                    return `<option value=\"${f.name}\"${currentFont === f.name ? ' selected' : ''}>${f.name}${f.isCustom ? ' (Custom)' : ''}</option>`;
+                    // Check if the current font matches either the name or value
+                    var isSelected = currentFont === f.name || currentFont === f.value;
+                    return `<option value="${f.value}"${isSelected ? ' selected' : ''}>${f.name}${f.isCustom ? ' (Custom)' : ''}</option>`;
                 }).join('');
                 html += `<div style=\"margin-bottom:6px; font-size:15px;\"><b>Font Family:</b></div>`;
                 html += `<select id=\"ckpp-prop-font-family\" style=\"width:100%; margin-bottom:10px;\">${fontOptions}</select>`;
@@ -627,6 +749,10 @@
                     // Show status message to indicate processing
                     if (msgSpan) msgSpan.textContent = 'Applying font...';
                     
+                    if (window.CKPP_DEBUG_MODE) {
+                        console.log('CKPP Debug: Selected font value:', selectedFont);
+                    }
+                    
                     // Get list of available fonts
                     var fontsDataDiv = document.getElementById('ckpp-fonts-data');
                     var uploadedFonts = [];
@@ -641,15 +767,46 @@
                         }
                     }
                     
-                    // Check if it's a custom font
-                    var customFont = uploadedFonts.find(function(f) { return f.name === selectedFont; });
+                    // Get web safe fonts list
+                    var webSafeFonts = [
+                        { name: 'Arial', value: 'Arial, Helvetica, sans-serif' },
+                        { name: 'Georgia', value: 'Georgia, serif' },
+                        { name: 'Impact', value: 'Impact, Charcoal, sans-serif' },
+                        { name: 'Tahoma', value: 'Tahoma, Geneva, sans-serif' },
+                        { name: 'Times New Roman', value: '"Times New Roman", Times, serif' },
+                        { name: 'Trebuchet MS', value: '"Trebuchet MS", Helvetica, sans-serif' },
+                        { name: 'Verdana', value: 'Verdana, Geneva, sans-serif' }
+                    ];
+                    
+                    // Check if it's a web safe font first
+                    var webSafeFont = webSafeFonts.find(function(f) { 
+                        return f.value === selectedFont || f.name === selectedFont; 
+                    });
+                    
+                    if (webSafeFont) {
+                        if (window.CKPP_DEBUG_MODE) {
+                            console.log('CKPP Debug: Using web safe font:', webSafeFont);
+                        }
+                        // Apply web safe font immediately
+                        applyFont(webSafeFont.value);
+                        return;
+                    }
+                    
+                    // If not web safe, check if it's a custom font
+                    var customFont = uploadedFonts.find(function(f) { 
+                        return f.name === selectedFont; 
+                    });
                     
                     // Function to apply the font after ensuring it's loaded
-                    function applyFont(fontName) {
+                    function applyFont(fontValue) {
                         try {
+                            if (window.CKPP_DEBUG_MODE) {
+                                console.log('CKPP Debug: Applying font with value:', fontValue);
+                            }
+                            
                             // Apply to selected object
                             sel.set({
-                                'fontFamily': fontName,
+                                'fontFamily': fontValue,
                                 dirty: true
                             });
                             
@@ -660,7 +817,7 @@
                             fabricCanvas.requestRenderAll();
                             
                             if (window.CKPP_DEBUG_MODE) {
-                                console.log('CKPP Debug: Applied font', fontName, 'to object', sel);
+                                console.log('CKPP Debug: Applied font', fontValue, 'to object', sel);
                             }
                             
                             // Clear message and trigger save
@@ -681,7 +838,7 @@
                             
                         } catch (err) {
                             if (window.CKPP_DEBUG_MODE) {
-                                console.error('CKPP Debug: Error applying font', fontName, err);
+                                console.error('CKPP Debug: Error applying font', fontValue, err);
                             }
                             if (msgSpan) {
                                 msgSpan.textContent = 'Error applying font';
@@ -692,6 +849,9 @@
                     
                     if (customFont) {
                         // For custom fonts, we need to ensure the font is loaded
+                        if (window.CKPP_DEBUG_MODE) {
+                            console.log('CKPP Debug: Found custom font:', customFont);
+                        }
                         
                         // Check if already preloaded
                         if (window.CKPP_LOADED_FONTS[customFont.name]) {
@@ -790,6 +950,12 @@
                                 }, 500);
                             }
                         }
+                    } else {
+                        // Not a custom font or web safe font, just apply as is
+                        if (window.CKPP_DEBUG_MODE) {
+                            console.log('CKPP Debug: Using unknown font, applying directly:', selectedFont);
+                        }
+                        applyFont(selectedFont);
                     }
                 };
                 
@@ -948,9 +1114,10 @@
                             setTimeout(function() { msgSpan.textContent = ''; }, 800);
                         }
                         
-                        // Apply alignment immediately
-                        sel.set('textAlign', align);
-                        sel.setCoords();
+                        // Apply alignment immediately with proper refresh
+                        sel.set({
+                            textAlign: align
+                        }).setCoords();
                         
                         // Update button styles
                         Array.from(alignGroup.querySelectorAll('button[data-align]')).forEach(function(b) {
@@ -960,14 +1127,24 @@
                         btn.classList.add('ckpp-align-btn-active');
                         btn.style.background = '#fec610';
                         
-                        // Force immediate canvas update
-                        fabricCanvas.requestRenderAll();
+                        // Force immediate canvas update with multiple renders if needed
+                        fabricCanvas.discardActiveObject();
+                        fabricCanvas.renderAll();
+                        
+                        // Re-select the object to ensure proper refresh
+                        setTimeout(() => {
+                            fabricCanvas.setActiveObject(sel);
+                            fabricCanvas.renderAll();
+                        }, 10);
                         
                         // Signal the change for saving
                         fabricCanvas.fire('object:modified', { target: sel });
                         if (typeof saveCanvasConfig === 'function') {
                             saveCanvasConfig();
                         }
+                        
+                        // Additional render after a short delay to ensure UI updates
+                        setTimeout(() => fabricCanvas.renderAll(), 50);
                     };
                 });
             }
@@ -1030,76 +1207,233 @@
                     var count = canvas.getObjects().filter(function(obj) {
                         return obj.type === 'i-text' || obj.type === 'textbox' || obj.type === 'text';
                     }).length + 1;
-                    var label = 'Text ' + count;
-                    var textbox = new fabric.Textbox('Text Box', {
+                    var label = 'Text Box ' + count;
+                    
+                    // Define fixed dimensions
+                    var textboxWidth = 200;
+                    var textboxHeight = 40;
+                    
+                    // Create a text object with fixed dimensions and auto-scaling text
+                    var textbox = new fabric.Textbox('Double click to edit', {
+                        left: 100,
+                        top: 100,
+                        width: textboxWidth,
+                        height: textboxHeight,
                         fontSize: 24,
-                        fill: '#222222',
-                        width: 200,
-                        height: 60,
-                        minWidth: 40,
-                        minHeight: 24,
-                        type: 'textbox', // ensure type is set for config
-                        label: label
+                        fontFamily: 'Arial, sans-serif',
+                        fill: '#333333',
+                        textAlign: 'center',
+                        editable: true,
+                        splitByGrapheme: false,
+                        borderColor: 'rgba(74, 144, 226, 0.3)',
+                        cornerColor: '#4a90e2',
+                        cornerSize: 8,
+                        transparentCorners: false,
+                        hasControls: true,
+                        hasBorders: true,
+                        padding: 8,
+                        textBackgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        originalFontSize: 24,
+                        originalWidth: textboxWidth,
+                        originalHeight: textboxHeight,
+                        isEditing: false,
+                        type: 'textbox',
+                        label: 'Text Box ' + count,
+                        hoverCursor: 'text',
+                        transitionDuration: 150,
+                        shadow: new fabric.Shadow({
+                            color: 'rgba(0,0,0,0.1)',
+                            blur: 3,
+                            offsetX: 0,
+                            offsetY: 1
+                        })
                     });
+                    
+                    // Add to canvas
                     canvas.add(textbox);
                     canvas.centerObject(textbox);
                     textbox.setCoords();
                     canvas.setActiveObject(textbox);
+                    
+                    // Set initial scale
+                    scaleTextToFit(textbox, canvas);
+                    
+                    // Handle scaling when text changes
+                    textbox.on('changed', function() {
+                        scaleTextToFit(textbox, canvas);
+                    });
+
+                    // Handle scaling when resized
+                    textbox.on('scaling', function() {
+                        // Only update width/height based on user scaling, never programmatically
+                        textbox.set({
+                            width: textbox.width * (textbox.scaleX || 1),
+                            height: textbox.height * (textbox.scaleY || 1),
+                            scaleX: 1,
+                            scaleY: 1
+                        });
+                        scaleTextToFit(textbox, canvas);
+                    });
+                    
+                    // Make textbox editable on double click
+                    textbox.on('mousedblclick', function() {
+                        // Create a temporary input element for editing
+                        var input = document.createElement('input');
+                        input.type = 'text';
+                        input.value = textbox.text === 'Double click to edit' ? '' : textbox.text;
+                        input.style.position = 'fixed';
+                        input.style.left = (canvas.getSelectionElement().getBoundingClientRect().left + textbox.left - 5) + 'px';
+                        input.style.top = (canvas.getSelectionElement().getBoundingClientRect().top + textbox.top - 5) + 'px';
+                        input.style.width = (textbox.width * textbox.scaleX + 10) + 'px';
+                        input.style.height = (textbox.height * textbox.scaleY + 10) + 'px';
+                        input.style.fontSize = textbox.fontSize + 'px';
+                        input.style.fontFamily = textbox.fontFamily || 'Arial, sans-serif';
+                        input.style.textAlign = textbox.textAlign || 'center';
+                        input.style.border = '2px solid #4a90e2';
+                        input.style.borderRadius = '4px';
+                        input.style.padding = '8px 12px';
+                        input.style.boxSizing = 'border-box';
+                        input.style.zIndex = '1000';
+                        input.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+                        input.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.15)';
+                        input.style.outline = 'none';
+                        input.style.transition = 'all 0.2s ease';
+                        input.style.transform = 'scale(1.02)';
+                        input.style.opacity = '0';
+                        
+                        // Add a subtle animation when appearing
+                        setTimeout(() => {
+                            input.style.opacity = '1';
+                            input.style.transform = 'scale(1.05)';
+                        }, 10);
+                        
+                        document.body.appendChild(input);
+                        input.focus();
+                        
+                        // Handle input submission with smooth transition
+                        function handleSubmit() {
+                            // Animate out
+                            input.style.transform = 'scale(0.95)';
+                            input.style.opacity = '0';
+                            
+                            // Update text after animation
+                            setTimeout(() => {
+                                if (input.parentNode) {
+                                    document.body.removeChild(input);
+                                }
+                                
+                                // Only update if text changed
+                                if (textbox.text !== input.value) {
+                                    textbox.set('text', input.value || ' ');
+                                    scaleTextToFit(textbox, canvas);
+                                    canvas.renderAll();
+                                }
+                                
+                                // Clean up
+                                input.removeEventListener('blur', handleSubmit);
+                                input.removeEventListener('keydown', handleKeyDown);
+                            }, 150);
+                        }
+                        
+                        // Handle keyboard interactions
+                        function handleKeyDown(e) {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleSubmit();
+                            } else if (e.key === 'Escape') {
+                                // Animate out without saving
+                                input.style.transform = 'scale(0.95)';
+                                input.style.opacity = '0';
+                                
+                                setTimeout(() => {
+                                    if (input.parentNode) {
+                                        document.body.removeChild(input);
+                                    }
+                                    canvas.renderAll();
+                                    input.removeEventListener('blur', handleSubmit);
+                                    input.removeEventListener('keydown', handleKeyDown);
+                                }, 150);
+                            }
+                        }
+                        
+                        input.addEventListener('blur', handleSubmit);
+                        input.addEventListener('keydown', handleKeyDown);
+                    });
+                    
+                    // Add max length control to properties panel
+                    updatePropertiesPanel(textbox, canvas);
+                    
                     canvas.requestRenderAll();
                 }
             };
-            if (toolAddImage) toolAddImage.onclick = function() {
-                // Create a file input if not present
-                var fileInput = document.getElementById('ckpp-upload-image-input');
-                if (!fileInput) {
-                    fileInput = document.createElement('input');
-                    fileInput.type = 'file';
-                    fileInput.accept = 'image/png,image/jpeg,image/jpg,image/gif,image/svg+xml';
-                    fileInput.id = 'ckpp-upload-image-input';
-                    fileInput.style.display = 'none';
-                    document.body.appendChild(fileInput);
+            
+            // Function to scale text to fit within the current box dimensions (single line, no box resize)
+            function scaleTextToFit(textObj, canvas) {
+                if (!textObj || !canvas) return;
+
+                // Only ever set fontSize, never width/height
+                var boxWidth = textObj.width * (textObj.scaleX || 1);
+                var currentText = (textObj.text || ' ').replace(/\n/g, ' '); // enforce single line
+                var maxFontSize = textObj.originalFontSize || 48;
+                var minFontSize = 8;
+                var fontSize = maxFontSize;
+
+                // Binary search for the best font size that fits the box width
+                var context = document.createElement('canvas').getContext('2d');
+                let low = minFontSize, high = maxFontSize;
+                while (low < high) {
+                    let mid = Math.floor((low + high + 1) / 2);
+                    context.font = mid + 'px ' + (textObj.fontFamily || 'Arial');
+                    let w = context.measureText(currentText).width;
+                    if (w <= boxWidth - 16) {
+                        low = mid;
+                    } else {
+                        high = mid - 1;
+                    }
                 }
-                fileInput.value = '';
-                fileInput.onchange = function(e) {
-                    var file = fileInput.files[0];
-                    if (!file) return;
-                    // Show loading indicator
-                    var msgSpan = document.getElementById('ckpp-template-msg');
-                    if (msgSpan) msgSpan.textContent = 'Uploading image...';
-                    var formData = new FormData();
-                    formData.append('action', 'ckpp_upload_image');
-                    formData.append('nonce', CKPPDesigner.nonce);
-                    formData.append('file', file);
-                    $.ajax({
-                        url: CKPPDesigner.ajaxUrl,
-                        type: 'POST',
-                        data: formData,
-                        processData: false,
-                        contentType: false,
-                        success: function(resp) {
-                            if (msgSpan) msgSpan.textContent = '';
-                            if (resp && resp.success && resp.data && resp.data.url) {
-                                fabric.Image.fromURL(resp.data.url, function(img) {
-                                    var canvas = window.ckppFabricCanvas;
-                                    img.set({ scaleX: 0.5, scaleY: 0.5 });
-                                    canvas.add(img);
-                                    canvas.centerObject(img);
-                                    img.setCoords();
-                                    canvas.setActiveObject(img);
-                                    canvas.requestRenderAll();
-                                }, { crossOrigin: 'anonymous' });
-                            } else {
-                                alert('Upload failed: ' + (resp && resp.data ? resp.data : 'Unknown error'));
-                            }
-                        },
-                        error: function(xhr, status, error) {
-                            if (msgSpan) msgSpan.textContent = '';
-                            alert('Upload failed: ' + error);
-                        }
-                    });
-                };
-                fileInput.click();
-            };
+                fontSize = low;
+                if (fontSize < minFontSize) fontSize = minFontSize;
+
+                textObj.set({
+                    fontSize: fontSize,
+                    scaleX: 1,
+                    scaleY: 1,
+                    text: currentText
+                });
+                textObj.setCoords();
+                canvas.requestRenderAll();
+            }
+            // Update properties panel with max length control
+            function updatePropertiesPanel(obj, canvas) {
+                if (!obj || obj.type !== 'textbox') return;
+                
+                // Create or update max length control
+                var maxLengthControl = document.getElementById('ckpp-prop-maxlength');
+                if (!maxLengthControl) {
+                    var propsPanel = document.querySelector('.ckpp-properties-panel');
+                    if (propsPanel) {
+                        var maxLengthHtml = `
+                            <div class="ckpp-property-group">
+                                <label for="ckpp-prop-maxlength">Max Characters</label>
+                                <input type="number" id="ckpp-prop-maxlength" min="1" max="1000" 
+                                       value="${obj.maxLength || 100}" class="ckpp-form-control">
+                            </div>`;
+                        propsPanel.insertAdjacentHTML('beforeend', maxLengthHtml);
+                        maxLengthControl = document.getElementById('ckpp-prop-maxlength');
+                        
+                        maxLengthControl.addEventListener('change', function() {
+                            var value = parseInt(this.value) || 100;
+                            if (value < 1) value = 1;
+                            if (value > 1000) value = 1000;
+                            obj.set('maxLength', value);
+                            canvas.requestRenderAll();
+                            canvas.fire('object:modified', { target: obj });
+                        });
+                    }
+                } else {
+                    maxLengthControl.value = obj.maxLength || 100;
+                }
+            }
             if (toolAddImagePlaceholder) toolAddImagePlaceholder.onclick = function() {
                 if (window.ckppFabricCanvas) {
                     var canvas = window.ckppFabricCanvas;

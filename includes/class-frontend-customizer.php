@@ -9,6 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+
 /**
  * Class CKPP_Frontend_Customizer
  * Handles frontend product personalization, AJAX, and WooCommerce integration.
@@ -28,6 +29,7 @@ class CKPP_Frontend_Customizer {
         add_action( 'woocommerce_before_order_itemmeta', [ $this, 'admin_order_item_personalization' ], 10, 3 );
         add_action( 'wp_ajax_ckpp_generate_print_file', [ $this, 'ajax_generate_print_file' ] );
         add_action( 'template_redirect', [ $this, 'replace_gallery_with_live_preview' ] );
+        add_action( 'save_post', [ $this, 'invalidate_product_config_cache' ], 10, 2 ); // Hook for cache invalidation
         if (is_admin()) {
             add_action('admin_menu', [ $this, 'add_print_files_submenu' ], 20);
         }
@@ -109,14 +111,30 @@ class CKPP_Frontend_Customizer {
         // }
         $product_id = intval( $_GET['productId'] );
         $assigned_design = get_post_meta( $product_id, '_ckpp_design_id', true );
-        $config = '';
+        $config = false; // Initialize to false to indicate not found in cache
+
+        $cache_key = '';
+        $cache_group = 'product_configs';
+        $expiration = 12 * HOUR_IN_SECONDS; // 12 hours
+
         if ( $assigned_design ) {
-            $config = get_post_meta( $assigned_design, '_ckpp_design_config', true );
+            $cache_key = 'design_config_' . $assigned_design;
+            $config = CKPP_Cache::get($cache_key, 'designs'); // Use 'designs' group for assigned designs
+            if ($config === false) {
+                $config = get_post_meta( $assigned_design, '_ckpp_design_config', true );
+                CKPP_Cache::set($cache_key, $config, 'designs', HOUR_IN_SECONDS); // Use HOUR_IN_SECONDS for design config
+            }
         } else {
-            $config = get_post_meta( $product_id, '_product_personalization_config_json', true );
+            $cache_key = 'product_config_' . $product_id;
+            $config = CKPP_Cache::get($cache_key, $cache_group);
+            if ($config === false) {
+                $config = get_post_meta( $product_id, '_product_personalization_config_json', true );
+                CKPP_Cache::set($cache_key, $config, $cache_group, $expiration);
+            }
         }
+
         if ( empty( $config ) ) {
-            wp_send_json_error( [ 'message' => 'No personalization config found.' ] );
+            CKPP_Error_Handler::handle_ajax_error( __( 'No personalization config found.', 'customkings' ) );
         }
         wp_send_json_success( [ 'config' => $config ] );
     }
@@ -146,7 +164,7 @@ class CKPP_Frontend_Customizer {
             // }
 
             if (is_array($decoded_data) && !empty($decoded_data['preview_image'])) {
-                $cart_item_data['ckpp_preview_image'] = $decoded_data['preview_image'];
+                $cart_item_data['ckpp_preview_image'] = esc_url_raw($decoded_data['preview_image']);
                 // error_log('[CKPP PREVIEW DEBUG] Preview image found in decoded data. Length: ' . strlen($decoded_data['preview_image']));
             // } else {
             //     error_log('[CKPP PREVIEW DEBUG] Preview image NOT found or empty in decoded data.');
@@ -157,6 +175,19 @@ class CKPP_Frontend_Customizer {
             //     }
             }
             $cart_item_data['ckpp_personalization_unique'] = md5($personalization_data_json);
+
+            // Cache rendered preview for cart item
+            if (!empty($cart_item_data['ckpp_preview_image'])) {
+                $preview_cache_key = 'cart_preview_' . $cart_item_data['ckpp_personalization_unique'];
+                CKPP_Cache::set($preview_cache_key, $cart_item_data['ckpp_preview_image'], 'cart_previews', HOUR_IN_SECONDS);
+            }
+
+            // Cache personalization configuration for the session
+            if (is_array($decoded_data)) {
+                $config_cache_key = 'personalization_config_' . $cart_item_data['ckpp_personalization_unique'];
+                CKPP_Cache::set($config_cache_key, $decoded_data, 'personalization_configs', DAY_IN_SECONDS);
+            }
+
             $cart_item_data['ckpp_is_personalized'] = true;
         } /* else { // This entire else block is commented out
             error_log('[CKPP PREVIEW DEBUG] $_POST_ckpp_personalization_data was NOT set.');
@@ -178,6 +209,22 @@ class CKPP_Frontend_Customizer {
         //     error_log('[CKPP DEBUG] display_cart_item_data - Cart Item Data: ' . print_r($cart_item, true));
         // }
         if (isset($cart_item['ckpp_personalization_data'])) {
+            $personalization_unique_hash = $cart_item['ckpp_personalization_unique'] ?? md5($cart_item['ckpp_personalization_data']);
+            $preview_cache_key = 'cart_preview_' . $personalization_unique_hash;
+            $cached_preview_image = CKPP_Cache::get($preview_cache_key, 'cart_previews');
+
+            if ($cached_preview_image) {
+                $item_data[] = [
+                    'name' => '',
+                    'value' => '',
+                    'display' => sprintf(
+                        '<img src="%s" alt="%s" style="max-width:100px;max-height:80px;display:block;margin:5px 0;" />',
+                        esc_attr($cached_preview_image),
+                        esc_attr__('Personalized Preview', 'customkings')
+                    ),
+                ];
+            }
+
             $data = json_decode($cart_item['ckpp_personalization_data'], true);
             if (is_array($data)) {
                 // Add a single header for personalization details (display only)
@@ -187,29 +234,12 @@ class CKPP_Frontend_Customizer {
                     'display' => '<strong>' . esc_html__('Personalization Details', 'customkings') . '</strong>',
                 ];
                 foreach ($data as $key => $value) {
-                    if (WP_DEBUG && strpos($key, 'image') !== false) {
-                        error_log('[CKPP DEBUG CART DISPLAY] Processing key: ' . $key . ' | Value (first 100 chars): ' . substr($value, 0, 100));
-                        error_log('[CKPP DEBUG CART DISPLAY] Is string? ' . (is_string($value) ? 'Yes' : 'No'));
-                        if (is_string($value)) {
-                            $is_data_url = strpos($value, 'data:image') === 0;
-                            $is_file_url = preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $value);
-                            error_log('[CKPP DEBUG CART DISPLAY] Starts with data:image? ' . ($is_data_url ? 'Yes' : 'No'));
-                            error_log('[CKPP DEBUG CART DISPLAY] Matches image extension? ' . ($is_file_url ? 'Yes' : 'No'));
-                            if ($is_data_url || $is_file_url) {
-                                $temp_img_html = sprintf(
-                                    '<img src="%s" alt="%s" style="max-width:100px;max-height:80px;display:block;margin:5px 0;" />',
-                                    (strpos($value, 'data:image') === 0 ? esc_attr($value) : esc_url($value)),
-                                    esc_attr(ucwords(str_replace(['_', '-'], ' ', preg_replace('/[_-]?\d+$/', '', $key))))
-                                );
-                                error_log('[CKPP DEBUG CART DISPLAY] Generated img_html (first 150 chars): ' . substr($temp_img_html, 0, 150));
-                            }
-                        }
-                    }
-
-                    if (empty($value) || $key === 'ckpp_unique') continue;
+                    // Skip preview_image as it's handled by the cached_preview_image logic above
+                    if (empty($value) || $key === 'ckpp_unique' || $key === 'preview_image') continue;
                     $label = preg_replace('/[_-]?\d+$/', '', $key);
                     $label = ucwords(str_replace(['_', '-'], ' ', $label));
                     if (is_string($value) && (strpos($value, 'data:image') === 0 || preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $value))) {
+                        // This block will now only handle images that are part of the personalization data, not the main preview
                         $img_html = sprintf(
                             '<img src="%s" alt="%s" style="max-width:100px;max-height:80px;display:block;margin:5px 0;" />',
                             (strpos($value, 'data:image') === 0 ? esc_attr($value) : esc_url($value)),
@@ -257,7 +287,16 @@ class CKPP_Frontend_Customizer {
     public function admin_order_item_personalization( $item_id, $item, $order ) {
         $data = wc_get_order_item_meta( $item_id, '_ckpp_personalization_data', true );
         $product_id = $item->get_product_id();
-        $config = get_post_meta( $product_id, '_product_personalization_config_json', true );
+        
+        $personalization_unique_hash = md5($data); // Assuming $data is the raw JSON string
+        $config_cache_key = 'personalization_config_' . $personalization_unique_hash;
+        $config = CKPP_Cache::get($config_cache_key, 'personalization_configs');
+
+        if ($config === false) {
+            $config = get_post_meta( $product_id, '_product_personalization_config_json', true );
+            CKPP_Cache::set($config_cache_key, $config, 'personalization_configs', DAY_IN_SECONDS);
+        }
+
         if ( $data ) {
             $arr = json_decode( $data, true );
             echo '<div style="margin:0.5em 0 1em 0;padding:0.5em 1em;background:#f8f8f8;border-left:3px solid #0073aa;">';
@@ -316,15 +355,24 @@ class CKPP_Frontend_Customizer {
      * AJAX: Generate print-ready PDF for an order item. Requires nonce and capability.
      */
     public function ajax_generate_print_file() {
-        check_ajax_referer( 'ckpp_customizer_nonce', 'nonce' );
-        if ( ! current_user_can( 'manage_woocommerce' ) ) wp_send_json_error( __( 'Unauthorized', 'customkings' ) );
+        CKPP_Security::verify_ajax_nonce('nonce', 'ckpp_customizer_nonce');
+        CKPP_Security::verify_capability('manage_woocommerce');
         $item_id = intval( $_POST['itemId'] );
         $order_id = intval( $_POST['orderId'] );
         $item = new WC_Order_Item_Product( $item_id );
         $product_id = $item->get_product_id();
-        $config = get_post_meta( $product_id, '_product_personalization_config_json', true );
+        
         $data = wc_get_order_item_meta( $item_id, '_ckpp_personalization_data', true );
-        if ( ! $config || ! $data ) wp_send_json_error( __( 'Missing data', 'customkings' ) );
+        $personalization_unique_hash = md5($data); // Assuming $data is the raw JSON string
+        $config_cache_key = 'personalization_config_' . $personalization_unique_hash;
+        $config = CKPP_Cache::get($config_cache_key, 'personalization_configs');
+
+        if ($config === false) {
+            $config = get_post_meta( $product_id, '_product_personalization_config_json', true );
+            CKPP_Cache::set($config_cache_key, $config, 'personalization_configs', DAY_IN_SECONDS);
+        }
+
+        if ( ! $config || ! $data ) CKPP_Error_Handler::handle_ajax_error( __( 'Missing data', 'customkings' ) );
         // Generate PDF (simple placeholder logic)
         if ( ! class_exists( 'TCPDF' ) ) {
             require_once( __DIR__ . '/../vendor/tecnickcom/tcpdf/tcpdf.php' );
@@ -341,8 +389,8 @@ class CKPP_Frontend_Customizer {
         }
         $upload_dir = wp_upload_dir();
         $file_name = 'ckpp-print-' . $item_id . '-' . time() . '.pdf';
-        $file_path = $upload_dir['path'] . '/' . $file_name;
-        $file_url = $upload_dir['url'] . '/' . $file_name;
+        $file_path = $upload_dir['basedir'] . '/ckpp_private_files/' . $file_name;
+        $file_url = plugins_url('includes/download-print-file.php', CUSTOMKINGS_PLUGIN_FILE) . '?file=' . urlencode($file_name);
         $pdf->Output($file_path, 'F');
         wc_update_order_item_meta( $item_id, '_ckpp_print_file_url', $file_url );
         wp_send_json_success( [ 'url' => $file_url ] );
@@ -365,7 +413,7 @@ class CKPP_Frontend_Customizer {
         }
         $assigned_design = get_post_meta( $post->ID, '_ckpp_design_id', true );
         if ( $assigned_design ) {
-            $debug_mode = get_option('ckpp_debug_mode', false) ? 'true' : 'false';
+            $debug_mode = CKPP_Config::is_debug_mode() ? 'true' : 'false';
             $nonce = wp_create_nonce('ckpp_customizer_nonce');
             // Output custom font CSS for all uploaded fonts
             if ( class_exists('CKPP_Fonts') ) {
@@ -394,7 +442,7 @@ class CKPP_Frontend_Customizer {
             echo '<div id="ckpp-live-preview" style="display:none;margin-bottom:2em;"></div>';
             echo '<script>window.CKPP_LIVE_PREVIEW = { productId: ' . intval($post->ID) . ', designId: ' . intval($assigned_design) . ', nonce: "' . esc_js($nonce) . '" };
 window.CKPP_DEBUG_MODE = ' . $debug_mode . ';</script>';
-            if ( get_option('ckpp_debug_mode', false) ) {
+            if ( CKPP_Config::is_debug_mode() ) {
                 $config = get_post_meta( $assigned_design, '_ckpp_design_config', true );
                 echo '<script>window.CKPP_LIVE_PREVIEW_CONFIG = ' . json_encode($config) . ';</script>';
             }
@@ -452,9 +500,7 @@ window.CKPP_DEBUG_MODE = ' . $debug_mode . ';</script>';
      * Render the Print Files admin page.
      */
     public function render_print_files_page() {
-        if (!current_user_can('manage_woocommerce')) {
-            wp_die(__('You do not have permission to access this page.', 'customkings'));
-        }
+        CKPP_Security::verify_capability('manage_woocommerce');
         $upload_dir = wp_upload_dir();
         $files = glob($upload_dir['path'] . '/ckpp-print-*.pdf');
         echo '<div class="wrap"><h1>' . esc_html__('Print Files', 'customkings') . '</h1>';
@@ -468,7 +514,7 @@ window.CKPP_DEBUG_MODE = ' . $debug_mode . ';</script>';
             if (preg_match('/ckpp-print-(\d+)-(\d+)\.pdf/', $file_name, $matches)) {
                 $item_id = $matches[1];
                 $order_id = wc_get_order_id_by_order_item_id($item_id);
-                $file_url = $upload_dir['url'] . '/' . $file_name;
+                $file_url = plugins_url('includes/download-print-file.php', CUSTOMKINGS_PLUGIN_FILE) . '?file=' . urlencode($file_name);
                 echo '<tr>';
                 echo '<td>' . esc_html($item_id) . '</td>';
                 echo '<td>' . esc_html($order_id ? $order_id : '-') . '</td>';
@@ -483,26 +529,42 @@ window.CKPP_DEBUG_MODE = ' . $debug_mode . ';</script>';
      * AJAX: Handle customer image upload for personalization. Public (with nonce and file checks).
      */
     public function ajax_upload_customer_image() {
-        check_ajax_referer( 'ckpp_customizer_nonce', 'nonce' );
+        CKPP_Security::verify_ajax_nonce('nonce', 'ckpp_customizer_nonce');
         // Limit to logged-in users or guests (no capability check)
-        if ( empty( $_FILES['file'] ) ) wp_send_json_error( __( 'No file uploaded.', 'customkings' ) );
-        $file = $_FILES['file'];
-        $allowed = [ 'image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml' ];
+
+        $allowed_mime_types = [ 'image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml' ];
         $max_size = 5 * 1024 * 1024; // 5MB
-        if ( ! in_array( $file['type'], $allowed ) ) wp_send_json_error( __( 'Invalid file type.', 'customkings' ) );
-        if ( $file['size'] > $max_size ) wp_send_json_error( __( 'File too large. Max 5MB.', 'customkings' ) );
-        $upload_dir = wp_upload_dir();
-        $target_dir = $upload_dir['basedir'] . '/ckpp_images/';
-        if ( ! file_exists( $target_dir ) ) {
-            wp_mkdir_p( $target_dir );
+
+        $upload_result = CKPP_Security::handle_file_upload('file', $allowed_mime_types, $max_size);
+
+        if (is_wp_error($upload_result)) {
+            CKPP_Error_Handler::handle_ajax_error( $upload_result->get_error_message() );
         }
-        $filename = wp_unique_filename( $target_dir, sanitize_file_name( $file['name'] ) );
-        $target_file = $target_dir . $filename;
-        if ( ! move_uploaded_file( $file['tmp_name'], $target_file ) ) {
-            wp_send_json_error( __( 'Failed to move uploaded file.', 'customkings' ) );
+
+        wp_send_json_success(['url' => $upload_result['url']]);
+    }
+
+    /**
+     * Invalidate product configuration cache when a product is saved/updated.
+     *
+     * @param int $post_id The post ID.
+     * @param WP_Post $post The post object.
+     */
+    public function invalidate_product_config_cache($post_id, $post) {
+        // Only act on 'product' post type and ensure it's not an autosave or revision
+        if ( 'product' !== $post->post_type || wp_is_post_autosave($post_id) || wp_is_post_revision($post_id) ) {
+            return;
         }
-        $url = $upload_dir['baseurl'] . '/ckpp_images/' . $filename;
-        wp_send_json_success([ 'url' => $url ]);
+
+        // Invalidate the specific product's configuration cache
+        CKPP_Cache::invalidate_key('product_config_' . $post_id, 'product_configs');
+
+        // If a design is assigned to this product, also invalidate that design's cache
+        $assigned_design_id = get_post_meta($post_id, '_ckpp_design_id', true);
+        if ($assigned_design_id) {
+            CKPP_Cache::invalidate_key('design_config_' . $assigned_design_id, 'designs');
+            CKPP_Cache::invalidate_key('design_preview_' . $assigned_design_id, 'designs');
+        }
     }
 }
 
@@ -529,7 +591,7 @@ if (!function_exists('ckpp_live_preview_shortcode')) {
 //         $cart_id .= '_' . md5($cart_item['ckpp_personalization_data']);
 //     }
 //     return $cart_id;
-// }, 10, 3); 
+// }, 10, 3);
 
 add_filter('woocommerce_blocks_cart_item_thumbnail', function($image, $cart_item, $cart_item_key) {
     if (!empty($cart_item['ckpp_preview_image'])) {
@@ -537,9 +599,3 @@ add_filter('woocommerce_blocks_cart_item_thumbnail', function($image, $cart_item
     }
     return $image;
 }, 10, 3);
-
-add_action('woocommerce_before_cart', function() {
-    foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
-        error_log('[CKPP DEBUG] Cart item ' . $cart_item_key . ': ' . print_r($cart_item, true));
-    }
-}); 

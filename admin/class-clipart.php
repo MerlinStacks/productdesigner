@@ -24,6 +24,16 @@ class CKPP_Clipart {
     }
 
     /**
+     * Invalidate the clipart cache.
+     */
+    private static function invalidate_clipart_cache() {
+        if ( class_exists( 'CKPP_Cache' ) ) {
+            CKPP_Cache::delete( 'ckpp_all_clipart', 'assets' );
+            CKPP_Cache::delete( 'ckpp_clipart_categories', 'assets' );
+        }
+    }
+
+    /**
      * Create the custom database tables for clipart and tags.
      */
     public static function create_tables() {
@@ -51,12 +61,17 @@ class CKPP_Clipart {
      * Handle clipart file upload from the admin UI. Requires nonce and capability.
      */
     public function handle_upload() {
-        if ( ! current_user_can( 'manage_options' ) ) wp_die( __( 'Unauthorized', 'customkings' ) );
-        check_admin_referer( 'ckpp_upload_clipart' );
+        CKPP_Security::verify_capability('manage_options');
+        CKPP_Security::verify_ajax_nonce('_wpnonce', 'ckpp_upload_clipart');
+
         if ( ! isset( $_FILES['ckpp_clipart_file'] ) || empty( $_FILES['ckpp_clipart_file']['name'] ) ) {
-            wp_redirect( add_query_arg( 'ckpp_clipart_error', 'no_file', wp_get_referer() ) );
-            exit;
+            CKPP_Error_Handler::log_security_event('Clipart Upload Failed: No file uploaded', [
+                'user_id' => get_current_user_id(),
+                'ip_address' => $_SERVER['REMOTE_ADDR']
+            ]);
+            CKPP_Error_Handler::handle_admin_error( __( 'No clipart file uploaded.', 'customkings' ) );
         }
+
         $file = $_FILES['ckpp_clipart_file'];
         $allowed_types = [
             'svg'  => 'image/svg+xml',
@@ -67,24 +82,61 @@ class CKPP_Clipart {
             'webp' => 'image/webp'
         ];
         $ext = strtolower( pathinfo( $file['name'], PATHINFO_EXTENSION ) );
+
         if ( ! array_key_exists( $ext, $allowed_types ) ) {
-            wp_redirect( add_query_arg( 'ckpp_clipart_error', 'invalid_type', wp_get_referer() ) );
-            exit;
+            CKPP_Error_Handler::log_security_event('Clipart Upload Failed: Invalid file type', [
+                'user_id' => get_current_user_id(),
+                'ip_address' => $_SERVER['REMOTE_ADDR'],
+                'file_name' => $file['name'],
+                'file_type' => $ext
+            ]);
+            CKPP_Error_Handler::handle_admin_error( __( 'Invalid clipart file type.', 'customkings' ) );
         }
+
         $upload = wp_handle_upload( $file, [ 'test_form' => false ] );
+
         if ( isset( $upload['error'] ) ) {
-            wp_redirect( add_query_arg( 'ckpp_clipart_error', 'upload_error', wp_get_referer() ) );
-            exit;
+            CKPP_Error_Handler::log_security_event('Clipart Upload Failed: wp_handle_upload error', [
+                'user_id' => get_current_user_id(),
+                'ip_address' => $_SERVER['REMOTE_ADDR'],
+                'file_name' => $file['name'],
+                'upload_error' => $upload['error']
+            ]);
+            CKPP_Error_Handler::handle_admin_error( sprintf( __( 'Failed to upload clipart file: %s', 'customkings' ), $upload['error'] ) );
         }
+
         global $wpdb;
-        $clipart = $wpdb->prefix . 'ckpp_clipart';
+        $clipart_table = $wpdb->prefix . 'ckpp_clipart';
         $name = sanitize_text_field( $_POST['ckpp_clipart_name'] );
         $tags = sanitize_text_field( $_POST['ckpp_clipart_tags'] );
-        $wpdb->insert( $clipart, [
+        $file_url = esc_url_raw( $upload['url'] );
+
+        $wpdb->insert( $clipart_table, [
             'name' => $name,
-            'file_url' => esc_url_raw( $upload['url'] ),
+            'file_url' => $file_url,
             'tags' => $tags,
         ] );
+
+        if ( $wpdb->last_error ) {
+            CKPP_Error_Handler::log_security_event('Clipart Upload Failed: Database insert error', [
+                'user_id' => get_current_user_id(),
+                'ip_address' => $_SERVER['REMOTE_ADDR'],
+                'clipart_name' => $name,
+                'file_url' => $file_url,
+                'db_error' => $wpdb->last_error
+            ]);
+            CKPP_Error_Handler::handle_admin_error( __( 'Failed to save clipart details to database.', 'customkings' ) );
+        }
+
+        CKPP_Error_Handler::log_security_event('Clipart Upload Successful', [
+            'user_id' => get_current_user_id(),
+            'ip_address' => $_SERVER['REMOTE_ADDR'],
+            'clipart_name' => $name,
+            'file_url' => $file_url,
+            'tags' => $tags
+        ]);
+
+        self::invalidate_clipart_cache(); // Invalidate cache on upload
         wp_redirect( add_query_arg( 'ckpp_clipart_success', 'uploaded', wp_get_referer() ) );
         exit;
     }
@@ -93,22 +145,75 @@ class CKPP_Clipart {
      * Handle clipart deletion from the admin UI. Requires nonce and capability.
      */
     public function handle_delete() {
-        if ( ! current_user_can( 'manage_options' ) ) wp_die( __( 'Unauthorized', 'customkings' ) );
-        check_admin_referer( 'ckpp_delete_clipart' );
-        if ( ! isset( $_POST['clipart_id'] ) ) {
-            wp_redirect( add_query_arg( 'ckpp_clipart_error', 'no_id', wp_get_referer() ) );
-            exit;
+        CKPP_Security::verify_capability('manage_options');
+        CKPP_Security::verify_ajax_nonce('_wpnonce', 'ckpp_delete_clipart');
+
+        $clipart_id = isset( $_POST['clipart_id'] ) ? intval( $_POST['clipart_id'] ) : 0;
+        if ( ! $clipart_id ) {
+            CKPP_Error_Handler::log_security_event('Clipart Deletion Failed: No clipart ID specified', [
+                'user_id' => get_current_user_id(),
+                'ip_address' => $_SERVER['REMOTE_ADDR']
+            ]);
+            CKPP_Error_Handler::handle_admin_error( __( 'No clipart ID specified for deletion.', 'customkings' ) );
         }
+
         global $wpdb;
-        $clipart = $wpdb->prefix . 'ckpp_clipart';
-        $clip = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $clipart WHERE id = %d", intval( $_POST['clipart_id'] ) ) );
-        if ( $clip ) {
-            $file_path = str_replace( wp_get_upload_dir()['baseurl'], wp_get_upload_dir()['basedir'], $clip->file_url );
-            if ( file_exists( $file_path ) ) {
-                unlink( $file_path );
-            }
-            $wpdb->delete( $clipart, [ 'id' => $clip->id ] );
+        $clipart_table = $wpdb->prefix . 'ckpp_clipart';
+        $clip = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $clipart_table WHERE id = %d", $clipart_id ) );
+
+        if ( ! $clip ) {
+            CKPP_Error_Handler::log_security_event('Clipart Deletion Failed: Clipart not found', [
+                'user_id' => get_current_user_id(),
+                'ip_address' => $_SERVER['REMOTE_ADDR'],
+                'clipart_id' => $clipart_id
+            ]);
+            CKPP_Error_Handler::handle_admin_error( __( 'Clipart not found for deletion.', 'customkings' ) );
         }
+
+        // Attempt to delete the file
+        $file_path = str_replace( wp_get_upload_dir()['baseurl'], wp_get_upload_dir()['basedir'], $clip->file_url );
+        if ( file_exists( $file_path ) ) {
+            if ( ! unlink( $file_path ) ) {
+                CKPP_Error_Handler::log_security_event('Clipart Deletion Failed: Could not delete file', [
+                    'user_id' => get_current_user_id(),
+                    'ip_address' => $_SERVER['REMOTE_ADDR'],
+                    'clipart_id' => $clipart_id,
+                    'clipart_name' => $clip->name,
+                    'file_path' => $file_path
+                ]);
+                CKPP_Error_Handler::handle_admin_error( sprintf( __( 'Failed to delete clipart file: %s', 'customkings' ), $clip->name ) );
+            }
+        } else {
+            CKPP_Error_Handler::log_security_event('Clipart Deletion Warning: File not found on disk', [
+                'user_id' => get_current_user_id(),
+                'ip_address' => $_SERVER['REMOTE_ADDR'],
+                'clipart_id' => $clipart_id,
+                'clipart_name' => $clip->name,
+                'file_path' => $file_path
+            ]);
+        }
+
+        $deleted = $wpdb->delete( $clipart_table, [ 'id' => $clip->id ] );
+
+        if ( $deleted === false ) {
+            CKPP_Error_Handler::log_security_event('Clipart Deletion Failed: Database delete error', [
+                'user_id' => get_current_user_id(),
+                'ip_address' => $_SERVER['REMOTE_ADDR'],
+                'clipart_id' => $clipart_id,
+                'clipart_name' => $clip->name,
+                'db_error' => $wpdb->last_error
+            ]);
+            CKPP_Error_Handler::handle_admin_error( __( 'Failed to delete clipart details from database.', 'customkings' ) );
+        }
+
+        CKPP_Error_Handler::log_security_event('Clipart Deletion Successful', [
+            'user_id' => get_current_user_id(),
+            'ip_address' => $_SERVER['REMOTE_ADDR'],
+            'clipart_id' => $clipart_id,
+            'clipart_name' => $clip->name
+        ]);
+
+        self::invalidate_clipart_cache(); // Invalidate cache on delete
         wp_redirect( add_query_arg( 'ckpp_clipart_success', 'deleted', wp_get_referer() ) );
         exit;
     }
@@ -119,8 +224,52 @@ class CKPP_Clipart {
      * @return array
      */
     public static function get_clipart() {
+        if ( class_exists( 'CKPP_Cache' ) ) {
+            $clipart_data = CKPP_Cache::get( 'ckpp_all_clipart', 'assets' );
+            if ( false !== $clipart_data ) {
+                return $clipart_data;
+            }
+        }
+
         global $wpdb;
-        $clipart = $wpdb->prefix . 'ckpp_clipart';
-        return $wpdb->get_results( "SELECT * FROM $clipart ORDER BY uploaded_at DESC" );
+        $table = $wpdb->prefix . 'ckpp_clipart';
+        $clipart_data = $wpdb->get_results( "SELECT * FROM $table ORDER BY uploaded_at DESC" );
+
+        if ( class_exists( 'CKPP_Cache' ) ) {
+            CKPP_Cache::set( 'ckpp_all_clipart', $clipart_data, 6 * HOUR_IN_SECONDS, 'assets' );
+        }
+
+        return $clipart_data;
     }
-} 
+
+    /**
+     * Get all unique clipart categories (tags) from the database.
+     *
+     * @return array
+     */
+    public static function get_clipart_categories() {
+        if ( class_exists( 'CKPP_Cache' ) ) {
+            $categories = CKPP_Cache::get( 'ckpp_clipart_categories', 'assets' );
+            if ( false !== $categories ) {
+                return $categories;
+            }
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'ckpp_clipart';
+        $results = $wpdb->get_col( "SELECT DISTINCT tags FROM $table WHERE tags != ''" );
+        $categories = [];
+        foreach ( $results as $tags_string ) {
+            $tags_array = array_map( 'trim', explode( ',', $tags_string ) );
+            $categories = array_merge( $categories, $tags_array );
+        }
+        $categories = array_unique( array_filter( $categories ) );
+        sort( $categories );
+
+        if ( class_exists( 'CKPP_Cache' ) ) {
+            CKPP_Cache::set( 'ckpp_clipart_categories', $categories, 6 * HOUR_IN_SECONDS, 'assets' );
+        }
+
+        return $categories;
+    }
+}

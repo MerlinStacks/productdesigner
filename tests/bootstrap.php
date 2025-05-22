@@ -4,7 +4,7 @@
  */
 
 // Ensure tests are run from the plugin root
-$_tests_dir = getenv('WP_TESTS_DIR') ?: '/tmp/wordpress-tests-lib';
+$_tests_dir = getenv('WP_TESTS_DIR') ?: 'C:/Users/ratte/AppData/Local/Temp/wordpress-tests-lib';
 
 if (!file_exists($_tests_dir . '/includes/functions.php')) {
     echo "Could not find WordPress test library in $_tests_dir.\n";
